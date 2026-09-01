@@ -26,6 +26,7 @@ import org.json.JSONTokener;
 public class MainActivity extends Activity {
     private static final int REQ_FILE = 1201;
     private static final int REQ_LOCATION = 1202;
+    private static final int MAX_PUSH_REGISTRATION_ATTEMPTS = 25;
     private WebView webView;
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
@@ -70,7 +71,7 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(true);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Provider-Android/1.3.1");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Provider-Android/1.4.2");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
@@ -130,7 +131,7 @@ public class MainActivity extends Activity {
                 getPreferences(MODE_PRIVATE).edit().putString("onesignal_external_id", externalId).apply();
                 OneSignalManager.login(externalId);
                 requestNativePushPermission();
-                publishNativeSubscriptionToWeb();
+                publishNativeSubscriptionToWeb(0);
             } else if (isSignedOutPage(url) && !lastExternalId.isEmpty()) {
                 OneSignalManager.logout();
                 lastExternalId = "";
@@ -144,13 +145,19 @@ public class MainActivity extends Activity {
         OneSignalManager.requestNotificationPermission();
     }
 
-    private void publishNativeSubscriptionToWeb() {
+    private void publishNativeSubscriptionToWeb(int attempt) {
+        if (attempt > MAX_PUSH_REGISTRATION_ATTEMPTS) return;
+        long delay = attempt == 0 ? 500L : 1200L;
         webView.postDelayed(() -> {
             String id = OneSignalManager.getSubscriptionId();
-            if (id == null || id.trim().isEmpty()) return;
-            String safe = id.replace("\\", "\\\\").replace("'", "\\'");
-            webView.evaluateJavascript("window.BP_NATIVE_ONESIGNAL_SUBSCRIPTION_ID='" + safe + "';window.dispatchEvent(new CustomEvent('bp:native-push-ready',{detail:{subscriptionId:'" + safe + "'}}));", null);
-        }, 1800);
+            if (id == null || id.trim().isEmpty()) {
+                publishNativeSubscriptionToWeb(attempt + 1);
+                return;
+            }
+            String safe = id.trim().replace("\\", "\\\\").replace("'", "\\'");
+            String js = "(function(){try{var sid='" + safe + "';window.BP_NATIVE_ONESIGNAL_SUBSCRIPTION_ID=sid;window.dispatchEvent(new CustomEvent('bp:native-push-ready',{detail:{subscriptionId:sid}}));var b=new URLSearchParams();b.set('csrf',window.CSRF||'');b.set('subscription_id',sid);b.set('external_id',window.BP_NATIVE_PUSH_EXTERNAL_ID||'');b.set('app_role','provider');fetch((window.APP_BASE||'/')+'api/native-push-register.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:b.toString()}).then(function(r){return r.json();}).then(function(x){window.BP_NATIVE_PUSH_REGISTERED=!!(x&&x.ok);window.BP_NATIVE_PUSH_STATUS=x||{};}).catch(function(){});}catch(e){}})();";
+            webView.evaluateJavascript(js, null);
+        }, delay);
     }
 
     private String decodeJavascriptString(String raw) {
