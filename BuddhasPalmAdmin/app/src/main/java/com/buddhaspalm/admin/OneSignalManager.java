@@ -11,11 +11,14 @@ import android.os.Build;
 import com.onesignal.Continue;
 import com.onesignal.OneSignal;
 import com.onesignal.debug.LogLevel;
+import com.onesignal.user.subscriptions.IPushSubscriptionObserver;
+import com.onesignal.user.subscriptions.PushSubscriptionChangedState;
 
 public final class OneSignalManager {
-    // New channel ID so Android does not reuse the old channel's cached sound/settings.
     public static final String BOOKING_CHANNEL_ID = "buddhas_booking_critical_v3";
     private static volatile boolean initialized = false;
+    private static volatile Runnable subscriptionChangedListener;
+    private static boolean observerAttached = false;
 
     private OneSignalManager() {}
 
@@ -28,6 +31,25 @@ public final class OneSignalManager {
         OneSignal.getDebug().setLogLevel(LogLevel.INFO);
         OneSignal.initWithContext(context.getApplicationContext(), appId);
         initialized = true;
+        attachSubscriptionObserver();
+    }
+
+    private static synchronized void attachSubscriptionObserver() {
+        if (!initialized || observerAttached) return;
+        OneSignal.getUser().getPushSubscription().addObserver(new IPushSubscriptionObserver() {
+            @Override
+            public void onPushSubscriptionChange(PushSubscriptionChangedState state) {
+                Runnable listener = subscriptionChangedListener;
+                if (listener != null) listener.run();
+            }
+        });
+        observerAttached = true;
+    }
+
+    public static void setSubscriptionChangedListener(Runnable listener) {
+        subscriptionChangedListener = listener;
+        attachSubscriptionObserver();
+        if (listener != null && !getSubscriptionId().isEmpty()) listener.run();
     }
 
     public static void createBookingNotificationChannel(Context context) {
@@ -75,11 +97,22 @@ public final class OneSignalManager {
         if (initialized && !OneSignal.getNotifications().getPermission()) {
             OneSignal.getNotifications().requestPermission(true, Continue.none());
         }
+        if (initialized) OneSignal.getUser().getPushSubscription().optIn();
     }
 
     public static String getSubscriptionId() {
         if (!initialized) return "";
         String id = OneSignal.getUser().getPushSubscription().getId();
-        return id == null ? "" : id;
+        return id == null ? "" : id.trim();
+    }
+
+    public static String getPushToken() {
+        if (!initialized) return "";
+        String token = OneSignal.getUser().getPushSubscription().getToken();
+        return token == null ? "" : token.trim();
+    }
+
+    public static boolean isOptedIn() {
+        return initialized && OneSignal.getUser().getPushSubscription().getOptedIn();
     }
 }
