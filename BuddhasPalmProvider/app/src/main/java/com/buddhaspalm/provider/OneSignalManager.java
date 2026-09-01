@@ -1,5 +1,7 @@
 package com.buddhaspalm.provider;
 
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -14,11 +16,18 @@ import com.onesignal.debug.LogLevel;
 import com.onesignal.user.subscriptions.IPushSubscriptionObserver;
 import com.onesignal.user.subscriptions.PushSubscriptionChangedState;
 
+import java.lang.ref.WeakReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public final class OneSignalManager {
     public static final String BOOKING_CHANNEL_ID = "buddhas_booking_critical_v3";
+
     private static volatile boolean initialized = false;
     private static volatile Runnable subscriptionChangedListener;
+    private static volatile WeakReference<Activity> verificationActivity = new WeakReference<>(null);
+    private static final AtomicBoolean verificationDialogShown = new AtomicBoolean(false);
     private static boolean observerAttached = false;
+    private static IPushSubscriptionObserver pushSubscriptionObserver;
 
     private OneSignalManager() {}
 
@@ -36,20 +45,52 @@ public final class OneSignalManager {
 
     private static synchronized void attachSubscriptionObserver() {
         if (!initialized || observerAttached) return;
-        OneSignal.getUser().getPushSubscription().addObserver(new IPushSubscriptionObserver() {
+
+        pushSubscriptionObserver = new IPushSubscriptionObserver() {
             @Override
             public void onPushSubscriptionChange(PushSubscriptionChangedState state) {
+                String id = state == null || state.getCurrent() == null
+                        ? ""
+                        : state.getCurrent().getId();
+                maybeShowIntegrationCompleteDialog(id);
+
                 Runnable listener = subscriptionChangedListener;
                 if (listener != null) listener.run();
             }
-        });
+        };
+
+        OneSignal.getUser().getPushSubscription().addObserver(pushSubscriptionObserver);
         observerAttached = true;
+    }
+
+    public static void setupPushSubscriptionVerification(Activity activity) {
+        if (activity == null) return;
+        verificationActivity = new WeakReference<>(activity);
+        attachSubscriptionObserver();
+        maybeShowIntegrationCompleteDialog(getSubscriptionId());
+    }
+
+    private static void maybeShowIntegrationCompleteDialog(String subscriptionId) {
+        if (!isRealSubscriptionId(subscriptionId)) return;
+        Activity activity = verificationActivity.get();
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return;
+        if (!verificationDialogShown.compareAndSet(false, true)) return;
+
+        activity.runOnUiThread(() -> {
+            if (activity.isFinishing() || activity.isDestroyed()) return;
+            new AlertDialog.Builder(activity)
+                    .setTitle("Your OneSignal SDK integration is complete!")
+                    .setMessage("You can now send Push Notifications & In-App Messages through OneSignal. Tap below to enable push notifications.")
+                    .setPositiveButton("Got it", (dialog, which) -> requestNotificationPermission())
+                    .setCancelable(false)
+                    .show();
+        });
     }
 
     public static void setSubscriptionChangedListener(Runnable listener) {
         subscriptionChangedListener = listener;
         attachSubscriptionObserver();
-        if (listener != null && !getSubscriptionId().isEmpty()) listener.run();
+        if (listener != null && isRealSubscriptionId(getSubscriptionId())) listener.run();
     }
 
     public static void createBookingNotificationChannel(Context context) {
@@ -77,17 +118,20 @@ public final class OneSignalManager {
         manager.createNotificationChannel(channel);
     }
 
-    public static boolean isInitialized() { return initialized; }
+    public static boolean isInitialized() {
+        return initialized;
+    }
 
     public static void login(String externalId) {
         if (!initialized || externalId == null) return;
         String clean = externalId.trim();
         if (clean.isEmpty()) return;
         OneSignal.login(clean);
-        OneSignal.getUser().getPushSubscription().optIn();
     }
 
-    public static void logout() { if (initialized) OneSignal.logout(); }
+    public static void logout() {
+        if (initialized) OneSignal.logout();
+    }
 
     public static boolean hasNotificationPermission() {
         return initialized && OneSignal.getNotifications().getPermission();
@@ -97,7 +141,6 @@ public final class OneSignalManager {
         if (initialized && !OneSignal.getNotifications().getPermission()) {
             OneSignal.getNotifications().requestPermission(true, Continue.none());
         }
-        if (initialized) OneSignal.getUser().getPushSubscription().optIn();
     }
 
     public static String getSubscriptionId() {
@@ -114,5 +157,11 @@ public final class OneSignalManager {
 
     public static boolean isOptedIn() {
         return initialized && OneSignal.getUser().getPushSubscription().getOptedIn();
+    }
+
+    public static boolean isRealSubscriptionId(String id) {
+        if (id == null) return false;
+        String clean = id.trim();
+        return !clean.isEmpty() && !clean.startsWith("local-");
     }
 }
