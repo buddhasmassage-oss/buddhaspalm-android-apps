@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Buddhas Palm Hub</string>
+    <string name="start_url">https://new.buddhaspalm.shop/</string>
+    <string name="allowed_host">new.buddhaspalm.shop</string>
+    <string name="onesignal_app_id" translatable="false">9e16ea8d-7fde-49f7-aa4f-efae7ca0b624</string>
+</resources>
