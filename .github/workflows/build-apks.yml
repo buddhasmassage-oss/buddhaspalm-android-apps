@@ -1,0 +1,58 @@
+name: Build BuddhasPalm Android APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-admin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BuddhasPalmAdmin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build Admin APK
+        run: gradle assembleDebug
+      - name: Rename Admin APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk BuddhasPalmAdmin.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BuddhasPalmAdmin-APK
+          path: BuddhasPalmAdmin/BuddhasPalmAdmin.apk
+
+  build-provider:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BuddhasPalmProvider
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build Provider APK
+        run: gradle assembleDebug
+      - name: Rename Provider APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk BuddhasPalmProvider.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BuddhasPalmProvider-APK
+          path: BuddhasPalmProvider/BuddhasPalmProvider.apk
