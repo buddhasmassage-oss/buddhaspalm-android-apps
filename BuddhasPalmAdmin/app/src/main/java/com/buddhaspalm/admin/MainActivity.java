@@ -1,7 +1,6 @@
 package com.buddhaspalm.admin;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
@@ -26,7 +25,6 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
-    private boolean nativePushPromptShown = false;
     private String lastExternalId = "";
 
     @Override
@@ -64,7 +62,7 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(false);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.1");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.3");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
@@ -107,20 +105,35 @@ public class MainActivity extends Activity {
 
     private void syncNativeOneSignalIdentity(WebView view, String url) {
         if (!OneSignalManager.isInitialized()) return;
-        String script = "(function(){try{return (window.BP_ONESIGNAL_CONFIG&&window.BP_ONESIGNAL_CONFIG.externalId)?window.BP_ONESIGNAL_CONFIG.externalId:'';}catch(e){return '';}})();";
+        String script = "(function(){try{var c=(window.BP_ONESIGNAL_CONFIG&&window.BP_ONESIGNAL_CONFIG.externalId)?window.BP_ONESIGNAL_CONFIG.externalId:'';if(c)return String(c);if(window.__onesignal_external_id)return String(window.__onesignal_external_id);try{var l=localStorage.getItem('hilot_os_ext_id');if(l)return String(l);}catch(e){}return '';}catch(e){return '';}})();";
         view.evaluateJavascript(script, value -> {
             String externalId = decodeJavascriptString(value);
-            if (externalId.startsWith("bp-user-")) {
+            if (!externalId.isEmpty()) {
                 lastExternalId = externalId;
                 getPreferences(MODE_PRIVATE).edit().putString("onesignal_external_id", externalId).apply();
                 OneSignalManager.login(externalId);
-                maybeOfferNativePushPermission();
+                requestNativePushPermission();
+                publishNativeSubscriptionToWeb();
             } else if (isSignedOutPage(url) && !lastExternalId.isEmpty()) {
                 OneSignalManager.logout();
                 lastExternalId = "";
                 getPreferences(MODE_PRIVATE).edit().remove("onesignal_external_id").apply();
             }
         });
+    }
+
+    private void requestNativePushPermission() {
+        if (!OneSignalManager.isInitialized() || OneSignalManager.hasNotificationPermission()) return;
+        OneSignalManager.requestNotificationPermission();
+    }
+
+    private void publishNativeSubscriptionToWeb() {
+        webView.postDelayed(() -> {
+            String id = OneSignalManager.getSubscriptionId();
+            if (id == null || id.trim().isEmpty()) return;
+            String safe = id.replace("\\", "\\\\").replace("'", "\\'");
+            webView.evaluateJavascript("window.BP_NATIVE_ONESIGNAL_SUBSCRIPTION_ID='" + safe + "';window.dispatchEvent(new CustomEvent('bp:native-push-ready',{detail:{subscriptionId:'" + safe + "'}}));", null);
+        }, 1800);
     }
 
     private String decodeJavascriptString(String raw) {
@@ -137,17 +150,6 @@ public class MainActivity extends Activity {
         if (url == null) return false;
         String lower = url.toLowerCase();
         return lower.contains("/logout.php") || lower.contains("/login.php");
-    }
-
-    private void maybeOfferNativePushPermission() {
-        if (nativePushPromptShown || OneSignalManager.hasNotificationPermission()) return;
-        nativePushPromptShown = true;
-        runOnUiThread(() -> new AlertDialog.Builder(this)
-                .setTitle("Enable booking notifications")
-                .setMessage("Allow OneSignal notifications so bookings, provider updates, payments and alerts can reach Buddhas Admin even when the app is closed.")
-                .setPositiveButton("Enable", (dialog, which) -> OneSignalManager.requestNotificationPermission())
-                .setNegativeButton("Later", null)
-                .show());
     }
 
     private void loadInitialUrl(Intent intent) {
