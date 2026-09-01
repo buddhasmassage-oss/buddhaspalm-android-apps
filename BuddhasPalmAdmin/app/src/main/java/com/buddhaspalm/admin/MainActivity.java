@@ -44,7 +44,9 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(75, 23, 106));
         getWindow().setNavigationBarColor(Color.rgb(50, 16, 69));
         lastExternalId = getPreferences(MODE_PRIVATE).getString("onesignal_external_id", "");
-        lastRegisteredSubscriptionId = getPreferences(MODE_PRIVATE).getString("onesignal_registered_subscription_id", "");
+        // Re-confirm the device with the server on every app launch. This does not
+        // create a new OneSignal subscription; it only refreshes our server record.
+        lastRegisteredSubscriptionId = "";
 
         RelativeLayout root = new RelativeLayout(this);
         webView = new WebView(this);
@@ -60,6 +62,7 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         configureWebView();
+        OneSignalManager.setupPushSubscriptionVerification(this);
         OneSignalManager.setSubscriptionChangedListener(() -> runOnUiThread(() -> publishNativeSubscription(0)));
         restoreNativePushIdentity();
         if (savedInstanceState != null) webView.restoreState(savedInstanceState);
@@ -76,7 +79,7 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(false);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.4.4");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.4.5");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
@@ -118,7 +121,6 @@ public class MainActivity extends Activity {
     private void restoreNativePushIdentity() {
         if (!OneSignalManager.isInitialized() || lastExternalId.isEmpty()) return;
         OneSignalManager.login(lastExternalId);
-        requestNativePushPermission();
         publishNativeSubscription(0);
     }
 
@@ -131,7 +133,6 @@ public class MainActivity extends Activity {
                 lastExternalId = externalId;
                 getPreferences(MODE_PRIVATE).edit().putString("onesignal_external_id", externalId).apply();
                 OneSignalManager.login(externalId);
-                requestNativePushPermission();
                 publishNativeSubscription(0);
             } else if (isSignedOutPage(url) && !lastExternalId.isEmpty()) {
                 OneSignalManager.logout();
@@ -142,22 +143,28 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void requestNativePushPermission() {
-        if (!OneSignalManager.isInitialized() || OneSignalManager.hasNotificationPermission()) return;
-        OneSignalManager.requestNotificationPermission();
-    }
-
     private void publishNativeSubscription(int attempt) {
         if (attempt > MAX_PUSH_REGISTRATION_ATTEMPTS || lastExternalId.isEmpty()) return;
         long delay = attempt == 0 ? 400L : 1200L;
         webView.postDelayed(() -> {
             String sid = OneSignalManager.getSubscriptionId();
-            if (sid == null || sid.trim().isEmpty()) {
+            if (!OneSignalManager.isRealSubscriptionId(sid)) {
                 publishNativeSubscription(attempt + 1);
                 return;
             }
+
             sid = sid.trim();
             publishSubscriptionStateToWeb(sid);
+
+            // A server-assigned subscription ID by itself is not enough for
+            // Android delivery. Do not tell the website the device is ready until
+            // OneSignal also exposes the real FCM token and the subscription is opted in.
+            String token = OneSignalManager.getPushToken();
+            if (token == null || token.trim().isEmpty() || !OneSignalManager.isOptedIn()) {
+                publishNativeSubscription(attempt + 1);
+                return;
+            }
+
             registerSubscriptionNatively(sid, attempt);
         }, delay);
     }
@@ -192,7 +199,7 @@ public class MainActivity extends Activity {
                 con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                 con.setRequestProperty("Cookie", cookie);
                 con.setRequestProperty("X-BP-Native-Push", "1");
-                con.setRequestProperty("User-Agent", "BuddhasPalm-Admin-Android/1.4.4");
+                con.setRequestProperty("User-Agent", "BuddhasPalm-Admin-Android/1.4.5");
                 String body = "subscription_id=" + enc(sid) + "&external_id=" + enc(externalId) + "&app_role=admin";
                 byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
                 con.setFixedLengthStreamingMode(bytes.length);
