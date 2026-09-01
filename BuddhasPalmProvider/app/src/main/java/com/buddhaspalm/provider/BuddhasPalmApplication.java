@@ -6,9 +6,9 @@ public class BuddhasPalmApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        // Initialize OneSignal before any other SDK calls. Permission is requested
+        // only from the required verification dialog after a real subscription ID
+        // has been observed.
         OneSignalManager.initialize(this);
-        // Ensure first-install devices receive the Android notification prompt
-        // even before the web session has exposed an External ID.
-        OneSignalManager.requestNotificationPermission();
     }
 }
