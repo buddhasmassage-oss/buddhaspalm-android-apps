@@ -23,14 +23,24 @@ import android.widget.RelativeLayout;
 
 import org.json.JSONTokener;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 public class MainActivity extends Activity {
     private static final int REQ_FILE = 1201;
     private static final int REQ_LOCATION = 1202;
-    private static final int MAX_PUSH_REGISTRATION_ATTEMPTS = 25;
+    private static final int MAX_PUSH_REGISTRATION_ATTEMPTS = 30;
     private WebView webView;
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
     private String lastExternalId = "";
+    private volatile String lastRegisteredSubscriptionId = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +48,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(75, 23, 106));
         getWindow().setNavigationBarColor(Color.rgb(50, 16, 69));
         lastExternalId = getPreferences(MODE_PRIVATE).getString("onesignal_external_id", "");
+        lastRegisteredSubscriptionId = getPreferences(MODE_PRIVATE).getString("onesignal_registered_subscription_id", "");
 
         RelativeLayout root = new RelativeLayout(this);
         webView = new WebView(this);
@@ -53,6 +64,7 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         configureWebView();
+        OneSignalManager.setSubscriptionChangedListener(() -> runOnUiThread(() -> publishNativeSubscription(0)));
         restoreNativePushIdentity();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
@@ -71,7 +83,7 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(true);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Provider-Android/1.4.2");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Provider-Android/1.4.4");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
@@ -97,14 +109,12 @@ public class MainActivity extends Activity {
                 progress.setProgress(newProgress);
                 progress.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
             }
-
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
                 if (origin != null && origin.startsWith("https://" + getString(R.string.allowed_host))) {
                     boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
                     callback.invoke(origin, granted, false);
                 } else callback.invoke(origin, false, false);
             }
-
             @Override public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
@@ -119,6 +129,7 @@ public class MainActivity extends Activity {
         if (!OneSignalManager.isInitialized() || lastExternalId.isEmpty()) return;
         OneSignalManager.login(lastExternalId);
         requestNativePushPermission();
+        publishNativeSubscription(0);
     }
 
     private void syncNativeOneSignalIdentity(WebView view, String url) {
@@ -131,11 +142,12 @@ public class MainActivity extends Activity {
                 getPreferences(MODE_PRIVATE).edit().putString("onesignal_external_id", externalId).apply();
                 OneSignalManager.login(externalId);
                 requestNativePushPermission();
-                publishNativeSubscriptionToWeb(0);
+                publishNativeSubscription(0);
             } else if (isSignedOutPage(url) && !lastExternalId.isEmpty()) {
                 OneSignalManager.logout();
                 lastExternalId = "";
-                getPreferences(MODE_PRIVATE).edit().remove("onesignal_external_id").apply();
+                lastRegisteredSubscriptionId = "";
+                getPreferences(MODE_PRIVATE).edit().remove("onesignal_external_id").remove("onesignal_registered_subscription_id").apply();
             }
         });
     }
@@ -145,19 +157,83 @@ public class MainActivity extends Activity {
         OneSignalManager.requestNotificationPermission();
     }
 
-    private void publishNativeSubscriptionToWeb(int attempt) {
-        if (attempt > MAX_PUSH_REGISTRATION_ATTEMPTS) return;
-        long delay = attempt == 0 ? 500L : 1200L;
+    private void publishNativeSubscription(int attempt) {
+        if (attempt > MAX_PUSH_REGISTRATION_ATTEMPTS || lastExternalId.isEmpty()) return;
+        long delay = attempt == 0 ? 400L : 1200L;
         webView.postDelayed(() -> {
-            String id = OneSignalManager.getSubscriptionId();
-            if (id == null || id.trim().isEmpty()) {
-                publishNativeSubscriptionToWeb(attempt + 1);
+            String sid = OneSignalManager.getSubscriptionId();
+            if (sid == null || sid.trim().isEmpty()) {
+                publishNativeSubscription(attempt + 1);
                 return;
             }
-            String safe = id.trim().replace("\\", "\\\\").replace("'", "\\'");
-            String js = "(function(){try{var sid='" + safe + "';window.BP_NATIVE_ONESIGNAL_SUBSCRIPTION_ID=sid;window.dispatchEvent(new CustomEvent('bp:native-push-ready',{detail:{subscriptionId:sid}}));var b=new URLSearchParams();b.set('csrf',window.CSRF||'');b.set('subscription_id',sid);b.set('external_id',window.BP_NATIVE_PUSH_EXTERNAL_ID||'');b.set('app_role','provider');fetch((window.APP_BASE||'/')+'api/native-push-register.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:b.toString()}).then(function(r){return r.json();}).then(function(x){window.BP_NATIVE_PUSH_REGISTERED=!!(x&&x.ok);window.BP_NATIVE_PUSH_STATUS=x||{};}).catch(function(){});}catch(e){}})();";
-            webView.evaluateJavascript(js, null);
+            sid = sid.trim();
+            publishSubscriptionStateToWeb(sid);
+            registerSubscriptionNatively(sid, attempt);
         }, delay);
+    }
+
+    private void publishSubscriptionStateToWeb(String sid) {
+        String safe = sid.replace("\\", "\\\\").replace("'", "\\'");
+        webView.evaluateJavascript("window.BP_NATIVE_ONESIGNAL_SUBSCRIPTION_ID='" + safe + "';window.dispatchEvent(new CustomEvent('bp:native-push-ready',{detail:{subscriptionId:'" + safe + "'}}));", null);
+    }
+
+    private String nativeRegisterUrl() {
+        Uri base = Uri.parse(getString(R.string.start_url));
+        return base.buildUpon().encodedPath("/api/native-push-register.php").clearQuery().fragment(null).build().toString();
+    }
+
+    private void registerSubscriptionNatively(String sid, int attempt) {
+        if (sid.equals(lastRegisteredSubscriptionId)) return;
+        final String endpoint = nativeRegisterUrl();
+        final String cookie = CookieManager.getInstance().getCookie(endpoint);
+        if (cookie == null || cookie.trim().isEmpty()) {
+            if (attempt < MAX_PUSH_REGISTRATION_ATTEMPTS) publishNativeSubscription(attempt + 1);
+            return;
+        }
+        final String externalId = lastExternalId;
+        new Thread(() -> {
+            HttpURLConnection con = null;
+            try {
+                con = (HttpURLConnection) new URL(endpoint).openConnection();
+                con.setRequestMethod("POST");
+                con.setConnectTimeout(10000);
+                con.setReadTimeout(10000);
+                con.setDoOutput(true);
+                con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                con.setRequestProperty("Cookie", cookie);
+                con.setRequestProperty("X-BP-Native-Push", "1");
+                con.setRequestProperty("User-Agent", "BuddhasPalm-Provider-Android/1.4.4");
+                String body = "subscription_id=" + enc(sid) + "&external_id=" + enc(externalId) + "&app_role=provider";
+                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                con.setFixedLengthStreamingMode(bytes.length);
+                try (OutputStream os = con.getOutputStream()) { os.write(bytes); }
+                int code = con.getResponseCode();
+                InputStream stream = code >= 200 && code < 400 ? con.getInputStream() : con.getErrorStream();
+                String response = readAll(stream);
+                boolean ok = code >= 200 && code < 300 && response.contains("\"ok\":true");
+                if (ok) {
+                    lastRegisteredSubscriptionId = sid;
+                    getPreferences(MODE_PRIVATE).edit().putString("onesignal_registered_subscription_id", sid).apply();
+                    runOnUiThread(() -> webView.evaluateJavascript("window.BP_NATIVE_PUSH_REGISTERED=true;", null));
+                } else if (attempt < MAX_PUSH_REGISTRATION_ATTEMPTS) {
+                    runOnUiThread(() -> publishNativeSubscription(attempt + 1));
+                }
+            } catch (Exception ignored) {
+                if (attempt < MAX_PUSH_REGISTRATION_ATTEMPTS) runOnUiThread(() -> publishNativeSubscription(attempt + 1));
+            } finally {
+                if (con != null) con.disconnect();
+            }
+        }).start();
+    }
+
+    private String enc(String value) throws Exception { return URLEncoder.encode(value == null ? "" : value, "UTF-8"); }
+    private String readAll(InputStream in) throws Exception {
+        if (in == null) return "";
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            String line; while ((line = br.readLine()) != null) sb.append(line);
+        }
+        return sb.toString();
     }
 
     private String decodeJavascriptString(String raw) {
@@ -165,9 +241,7 @@ public class MainActivity extends Activity {
         try {
             Object decoded = new JSONTokener(raw).nextValue();
             return decoded instanceof String ? ((String) decoded).trim() : "";
-        } catch (Exception ignored) {
-            return "";
-        }
+        } catch (Exception ignored) { return ""; }
     }
 
     private boolean isSignedOutPage(String url) {
@@ -184,9 +258,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); loadInitialUrl(intent); }
     @Override protected void onSaveInstanceState(Bundle outState) { webView.saveState(outState); super.onSaveInstanceState(outState); }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_FILE && fileCallback != null) {
             Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
@@ -194,8 +266,5 @@ public class MainActivity extends Activity {
             fileCallback = null;
         }
     }
-
-    @Override public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack(); else super.onBackPressed();
-    }
+    @Override public void onBackPressed() { if (webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
 }
