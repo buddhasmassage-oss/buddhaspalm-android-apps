@@ -2,5 +2,5 @@
     <string name="app_name">Buddhas Admin</string>
     <string name="start_url">https://metro.buddhaspinas.com/admin/</string>
     <string name="allowed_host">metro.buddhaspinas.com</string>
-    <string name="onesignal_app_id" translatable="false">9e16ea8d-7fde-49f7-aa4f-efae7ca0b624</string>
+    <string name="onesignal_app_id" translatable="false">2509808f-b8f3-4b6f-9ccb-c4101ff97bec</string>
 </resources>
