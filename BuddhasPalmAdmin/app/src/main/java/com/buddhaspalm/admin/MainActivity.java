@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         configureWebView();
+        restoreNativePushIdentity();
         if (savedInstanceState != null) webView.restoreState(savedInstanceState);
         else loadInitialUrl(getIntent());
     }
@@ -62,7 +63,7 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(false);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.3");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.3.1");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
@@ -103,9 +104,15 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void restoreNativePushIdentity() {
+        if (!OneSignalManager.isInitialized() || lastExternalId.isEmpty()) return;
+        OneSignalManager.login(lastExternalId);
+        requestNativePushPermission();
+    }
+
     private void syncNativeOneSignalIdentity(WebView view, String url) {
         if (!OneSignalManager.isInitialized()) return;
-        String script = "(function(){try{var c=(window.BP_ONESIGNAL_CONFIG&&window.BP_ONESIGNAL_CONFIG.externalId)?window.BP_ONESIGNAL_CONFIG.externalId:'';if(c)return String(c);if(window.__onesignal_external_id)return String(window.__onesignal_external_id);try{var l=localStorage.getItem('hilot_os_ext_id');if(l)return String(l);}catch(e){}return '';}catch(e){return '';}})();";
+        String script = "(function(){try{var n=window.BP_NATIVE_PUSH_EXTERNAL_ID||'';if(n)return String(n);var c=(window.BP_ONESIGNAL_CONFIG&&window.BP_ONESIGNAL_CONFIG.externalId)?window.BP_ONESIGNAL_CONFIG.externalId:'';if(c)return String(c);if(window.__onesignal_external_id)return String(window.__onesignal_external_id);try{var l=localStorage.getItem('hilot_os_ext_id');if(l)return String(l);}catch(e){}return '';}catch(e){return '';}})();";
         view.evaluateJavascript(script, value -> {
             String externalId = decodeJavascriptString(value);
             if (!externalId.isEmpty()) {
