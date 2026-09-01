@@ -13,7 +13,8 @@ import com.onesignal.OneSignal;
 import com.onesignal.debug.LogLevel;
 
 public final class OneSignalManager {
-    public static final String BOOKING_CHANNEL_ID = "buddhas_booking_critical_v2";
+    // New channel ID so Android does not reuse the old channel's cached sound/settings.
+    public static final String BOOKING_CHANNEL_ID = "buddhas_booking_critical_v3";
     private static volatile boolean initialized = false;
 
     private OneSignalManager() {}
@@ -24,7 +25,7 @@ public final class OneSignalManager {
         if (appId.isEmpty()) return;
 
         createBookingNotificationChannel(context.getApplicationContext());
-        OneSignal.getDebug().setLogLevel(LogLevel.WARN);
+        OneSignal.getDebug().setLogLevel(LogLevel.INFO);
         OneSignal.initWithContext(context.getApplicationContext(), appId);
         initialized = true;
     }
@@ -71,7 +72,9 @@ public final class OneSignalManager {
     }
 
     public static void requestNotificationPermission() {
-        if (initialized) OneSignal.getNotifications().requestPermission(true, Continue.none());
+        if (initialized && !OneSignal.getNotifications().getPermission()) {
+            OneSignal.getNotifications().requestPermission(true, Continue.none());
+        }
     }
 
     public static String getSubscriptionId() {
