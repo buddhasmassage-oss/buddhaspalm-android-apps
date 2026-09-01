@@ -27,11 +27,11 @@ jobs:
       - name: Build Admin APK
         run: gradle assembleDebug
       - name: Rename Admin APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk BuddhasPalmAdmin.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Admin.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: BuddhasPalmAdmin-APK
-          path: BuddhasPalmAdmin/BuddhasPalmAdmin.apk
+          name: Buddhas-Admin-APK
+          path: "BuddhasPalmAdmin/Buddhas Admin.apk"
 
   build-provider:
     runs-on: ubuntu-latest
@@ -51,8 +51,8 @@ jobs:
       - name: Build Provider APK
         run: gradle assembleDebug
       - name: Rename Provider APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk BuddhasPalmProvider.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Provider app.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: BuddhasPalmProvider-APK
-          path: BuddhasPalmProvider/BuddhasPalmProvider.apk
+          name: Provider-app-APK
+          path: "BuddhasPalmProvider/Provider app.apk"

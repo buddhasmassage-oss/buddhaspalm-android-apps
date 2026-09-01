@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">BuddhasPalm Admin</string>
+    <string name="app_name">Buddhas Admin</string>
     <string name="start_url">https://metro.buddhaspinas.com/admin/</string>
     <string name="allowed_host">metro.buddhaspinas.com</string>
 </resources>
