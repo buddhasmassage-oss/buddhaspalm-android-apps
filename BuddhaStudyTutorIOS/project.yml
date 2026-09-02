@@ -1,0 +1,45 @@
+name: BuddhaStudyTutorIOS
+options:
+  bundleIdPrefix: net.buddhaspalm
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: 12.0.0
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    IPHONEOS_DEPLOYMENT_TARGET: 15.0
+    TARGETED_DEVICE_FAMILY: 1
+    PRODUCT_BUNDLE_IDENTIFIER: net.buddhaspalm.tutor
+    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 1
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+targets:
+  BuddhaStudyTutorIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: BuddhaStudyTutorIOS
+        excludes:
+          - Info.plist
+          - BuddhaStudyTutorIOS.entitlements
+    info:
+      path: BuddhaStudyTutorIOS/Info.plist
+    dependencies:
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseMessaging
+    settings:
+      base:
+        PRODUCT_NAME: BuddhaStudyTutor
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_ENTITLEMENTS: BuddhaStudyTutorIOS/BuddhaStudyTutorIOS.entitlements
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
