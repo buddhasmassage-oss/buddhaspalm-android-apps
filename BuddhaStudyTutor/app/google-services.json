@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1020836481565",
+    "project_id": "buddhas-ed87a",
+    "storage_bucket": "buddhas-ed87a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1020836481565:android:56af4af5e9581eb2bed4f4",
+        "android_client_info": {
+          "package_name": "net.buddhaspalm.tutor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQr-1L7Znkw3m7PaynTJGGuA5TbyEd84I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
