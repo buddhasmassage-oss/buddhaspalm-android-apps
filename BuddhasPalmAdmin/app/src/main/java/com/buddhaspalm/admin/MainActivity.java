@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
@@ -15,6 +16,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 
@@ -44,19 +47,28 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(75, 23, 106));
         getWindow().setNavigationBarColor(Color.rgb(50, 16, 69));
         lastExternalId = getPreferences(MODE_PRIVATE).getString("onesignal_external_id", "");
-        // Re-confirm the device with the server on every app launch. This does not
-        // create a new OneSignal subscription; it only refreshes our server record.
         lastRegisteredSubscriptionId = "";
 
         RelativeLayout root = new RelativeLayout(this);
         webView = new WebView(this);
+        webView.setId(View.generateViewId());
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progress.setId(View.generateViewId());
         progress.setMax(100);
         progress.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(212,175,55)));
 
+        LinearLayout trackingBar = buildTrackingBar();
+        trackingBar.setId(View.generateViewId());
+
+        RelativeLayout.LayoutParams barParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(52));
+        barParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        root.addView(trackingBar, barParams);
+
         RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
-        RelativeLayout.LayoutParams progParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, 6);
+        webParams.addRule(RelativeLayout.ABOVE, trackingBar.getId());
+        RelativeLayout.LayoutParams progParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(3));
         progParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        progParams.addRule(RelativeLayout.ABOVE, trackingBar.getId());
         root.addView(webView, webParams);
         root.addView(progress, progParams);
         setContentView(root);
@@ -69,6 +81,49 @@ public class MainActivity extends Activity {
         else loadInitialUrl(getIntent());
     }
 
+    private LinearLayout buildTrackingBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER);
+        bar.setPadding(dp(8), dp(6), dp(8), dp(6));
+        bar.setBackgroundColor(Color.rgb(50, 16, 69));
+
+        Button tracking = buildShortcutButton("Provider Tracking");
+        Button alerts = buildShortcutButton("Location Alerts");
+        tracking.setOnClickListener(v -> openAdminPath("/admin/provider-locations.php"));
+        alerts.setOnClickListener(v -> openAdminPath("/admin/location-alerts.php"));
+
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        p.setMarginEnd(dp(5));
+        bar.addView(tracking, p);
+        LinearLayout.LayoutParams p2 = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+        p2.setMarginStart(dp(5));
+        bar.addView(alerts, p2);
+        return bar;
+    }
+
+    private Button buildShortcutButton(String text) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setText(text);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(12f);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(6), 0, dp(6), 0);
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(94, 50, 120)));
+        return button;
+    }
+
+    private void openAdminPath(String path) {
+        Uri base = Uri.parse(getString(R.string.start_url));
+        Uri target = base.buildUpon().encodedPath(path).clearQuery().fragment(null).build();
+        webView.loadUrl(target.toString());
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
     private void configureWebView() {
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -79,7 +134,7 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(false);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.4.5");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Admin-Android/1.5.0");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
@@ -130,9 +185,10 @@ public class MainActivity extends Activity {
         view.evaluateJavascript(script, value -> {
             String externalId = decodeJavascriptString(value);
             if (!externalId.isEmpty()) {
+                boolean changed = !externalId.equals(lastExternalId);
                 lastExternalId = externalId;
                 getPreferences(MODE_PRIVATE).edit().putString("onesignal_external_id", externalId).apply();
-                OneSignalManager.login(externalId);
+                if (changed) OneSignalManager.login(externalId);
                 publishNativeSubscription(0);
             } else if (isSignedOutPage(url) && !lastExternalId.isEmpty()) {
                 OneSignalManager.logout();
@@ -156,9 +212,6 @@ public class MainActivity extends Activity {
             sid = sid.trim();
             publishSubscriptionStateToWeb(sid);
 
-            // A server-assigned subscription ID by itself is not enough for
-            // Android delivery. Do not tell the website the device is ready until
-            // OneSignal also exposes the real FCM token and the subscription is opted in.
             String token = OneSignalManager.getPushToken();
             if (token == null || token.trim().isEmpty() || !OneSignalManager.isOptedIn()) {
                 publishNativeSubscription(attempt + 1);
@@ -199,7 +252,7 @@ public class MainActivity extends Activity {
                 con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                 con.setRequestProperty("Cookie", cookie);
                 con.setRequestProperty("X-BP-Native-Push", "1");
-                con.setRequestProperty("User-Agent", "BuddhasPalm-Admin-Android/1.4.5");
+                con.setRequestProperty("User-Agent", "BuddhasPalm-Admin-Android/1.5.0");
                 String body = "subscription_id=" + enc(sid) + "&external_id=" + enc(externalId) + "&app_role=admin";
                 byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
                 con.setFixedLengthStreamingMode(bytes.length);
