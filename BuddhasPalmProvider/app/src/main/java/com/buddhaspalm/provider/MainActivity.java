@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -41,6 +42,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private String lastExternalId = "";
     private volatile String lastRegisteredSubscriptionId = "";
+    private volatile boolean pendingDutyStart = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,9 +85,10 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setGeolocationEnabled(true);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Provider-Android/1.4.4");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasPalm-Provider-Android/1.5.0");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
+        webView.addJavascriptInterface(new AndroidDutyBridge(), "AndroidDutyBridge");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -125,6 +128,70 @@ public class MainActivity extends Activity {
         });
     }
 
+    public class AndroidDutyBridge {
+        @JavascriptInterface
+        public void start() {
+            runOnUiThread(() -> startNativeDutyTracking());
+        }
+
+        @JavascriptInterface
+        public void stop() {
+            runOnUiThread(() -> stopNativeDutyTracking());
+        }
+
+        @JavascriptInterface
+        public boolean isActive() {
+            return getSharedPreferences(ProviderLocationService.PREFS, MODE_PRIVATE)
+                    .getBoolean(ProviderLocationService.PREF_ACTIVE, false);
+        }
+    }
+
+    private String dutyEndpoint() {
+        Uri base = Uri.parse(getString(R.string.start_url));
+        return base.buildUpon().encodedPath("/api/provider-duty.php").clearQuery().fragment(null).build().toString();
+    }
+
+    private void startNativeDutyTracking() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            pendingDutyStart = true;
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
+            dispatchDutyStatus(false, "Location permission is required for On-Duty tracking.");
+            return;
+        }
+        String endpoint = dutyEndpoint();
+        String cookie = CookieManager.getInstance().getCookie(endpoint);
+        if (cookie == null || cookie.trim().isEmpty()) {
+            dispatchDutyStatus(false, "Please stay signed in before starting On-Duty tracking.");
+            return;
+        }
+        getSharedPreferences(ProviderLocationService.PREFS, MODE_PRIVATE).edit()
+                .putBoolean(ProviderLocationService.PREF_ACTIVE, true)
+                .putString(ProviderLocationService.PREF_COOKIE, cookie)
+                .putString(ProviderLocationService.PREF_ENDPOINT, endpoint)
+                .apply();
+        Intent service = new Intent(this, ProviderLocationService.class);
+        service.setAction(ProviderLocationService.ACTION_START);
+        service.putExtra(ProviderLocationService.PREF_COOKIE, cookie);
+        service.putExtra(ProviderLocationService.PREF_ENDPOINT, endpoint);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service); else startService(service);
+        dispatchDutyStatus(true, null);
+    }
+
+    private void stopNativeDutyTracking() {
+        getSharedPreferences(ProviderLocationService.PREFS, MODE_PRIVATE).edit().putBoolean(ProviderLocationService.PREF_ACTIVE, false).apply();
+        Intent service = new Intent(this, ProviderLocationService.class);
+        service.setAction(ProviderLocationService.ACTION_STOP);
+        try { startService(service); } catch (Exception e) { stopService(service); }
+        dispatchDutyStatus(false, null);
+    }
+
+    private void dispatchDutyStatus(boolean active, String error) {
+        if (webView == null) return;
+        String err = error == null ? "null" : "'" + error.replace("\\", "\\\\").replace("'", "\\'") + "'";
+        String js = "window.dispatchEvent(new CustomEvent('bp:duty-native-status',{detail:{active:" + (active ? "true" : "false") + ",error:" + err + "}}));";
+        webView.evaluateJavascript(js, null);
+    }
+
     private void restoreNativePushIdentity() {
         if (!OneSignalManager.isInitialized() || lastExternalId.isEmpty()) return;
         OneSignalManager.login(lastExternalId);
@@ -148,6 +215,7 @@ public class MainActivity extends Activity {
                 lastExternalId = "";
                 lastRegisteredSubscriptionId = "";
                 getPreferences(MODE_PRIVATE).edit().remove("onesignal_external_id").remove("onesignal_registered_subscription_id").apply();
+                stopNativeDutyTracking();
             }
         });
     }
@@ -202,7 +270,7 @@ public class MainActivity extends Activity {
                 con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
                 con.setRequestProperty("Cookie", cookie);
                 con.setRequestProperty("X-BP-Native-Push", "1");
-                con.setRequestProperty("User-Agent", "BuddhasPalm-Provider-Android/1.4.4");
+                con.setRequestProperty("User-Agent", "BuddhasPalm-Provider-Android/1.5.0");
                 String body = "subscription_id=" + enc(sid) + "&external_id=" + enc(externalId) + "&app_role=provider";
                 byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
                 con.setFixedLengthStreamingMode(bytes.length);
@@ -254,6 +322,20 @@ public class MainActivity extends Activity {
         Uri data = intent != null ? intent.getData() : null;
         if (data != null && "https".equalsIgnoreCase(data.getScheme()) && getString(R.string.allowed_host).equalsIgnoreCase(data.getHost())) webView.loadUrl(data.toString());
         else webView.loadUrl(getString(R.string.start_url));
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_LOCATION) {
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (granted && pendingDutyStart) {
+                pendingDutyStart = false;
+                startNativeDutyTracking();
+            } else if (!granted && pendingDutyStart) {
+                pendingDutyStart = false;
+                dispatchDutyStatus(false, "Location permission denied. On-Duty tracking cannot start.");
+            }
+        }
     }
 
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); loadInitialUrl(intent); }

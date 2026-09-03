@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <application
         android:name=".BuddhasPalmApplication"
@@ -19,6 +20,7 @@
         android:theme="@style/AppTheme">
         <meta-data android:name="com.onesignal.NotificationServiceExtension" android:value="com.buddhaspalm.provider.BookingNotificationServiceExtension" />
         <service android:name=".BookingAlarmService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".ProviderLocationService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />
         <receiver android:name=".BookingAlarmReceiver" android:exported="false" />
         <activity android:name=".BookingAlarmOpenActivity" android:exported="false" android:excludeFromRecents="true" android:noHistory="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="unspecified">
