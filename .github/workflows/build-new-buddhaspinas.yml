@@ -25,21 +25,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+      - name: Restore exact Buddhas Training launcher icon
+        run: |
+          base64 -d app/src/main/res/drawable/app_icon_png.b64 > app/src/main/res/drawable/app_icon.png
+          for d in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
+            mkdir -p "app/src/main/res/$d"
+            cp app/src/main/res/drawable/app_icon.png "app/src/main/res/$d/ic_launcher.png"
+            cp app/src/main/res/drawable/app_icon.png "app/src/main/res/$d/ic_launcher_round.png"
+          done
+          test "$(head -c 8 app/src/main/res/drawable/app_icon.png | xxd -p)" = "89504e470d0a1a0a"
       - name: Build New BuddhasPinas APK
         run: gradle assembleDebug
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "New BuddhasPinas.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "New BuddhasPinas v1.0.2.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: New-BuddhasPinas-APK
-          path: "NewBuddhasPinas/New BuddhasPinas.apk"
+          name: New-BuddhasPinas-APK-v1.0.2
+          path: "NewBuddhasPinas/New BuddhasPinas v1.0.2.apk"
           if-no-files-found: error
       - name: Package Android source code
         run: |
-          zip -r ../New-BuddhasPinas-Android-Source-v1.0.1.zip . \
+          zip -r ../New-BuddhasPinas-Android-Source-v1.0.2.zip . \
             -x "app/build/*" ".gradle/*" "build/*" "*.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: New-BuddhasPinas-Android-Source-v1.0.1
-          path: New-BuddhasPinas-Android-Source-v1.0.1.zip
+          name: New-BuddhasPinas-Android-Source-v1.0.2
+          path: New-BuddhasPinas-Android-Source-v1.0.2.zip
           if-no-files-found: error
