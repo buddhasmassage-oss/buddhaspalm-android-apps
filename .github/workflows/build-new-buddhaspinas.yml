@@ -32,6 +32,8 @@ jobs:
           PAYLOAD="icon_payload/buddhas_training.jpg.b64"
           test -f "$PAYLOAD"
 
+          # Remove stale payload/resource files left by older icon builds.
+          rm -f app/src/main/res/drawable/*.b64
           rm -f app/src/main/res/drawable/app_icon.png app/src/main/res/drawable/app_icon.jpg
           base64 -d "$PAYLOAD" > app/src/main/res/drawable/app_icon.jpg
 
@@ -43,7 +45,6 @@ jobs:
             cp app/src/main/res/drawable/app_icon.jpg "app/src/main/res/$d/ic_launcher_round.jpg"
           done
 
-          # Ensure Android resolves only the new uploaded-logo launcher resources.
           test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.jpg
           test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.jpg
 
