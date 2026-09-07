@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 public final class FirebaseConfigManager {
     private static final String TAG = "TutorFirebaseConfig";
     private static final String PREF = "buddhastudy_firebase";
-    private static final String URL_CONFIG = "https://tutor.buddhaspalm.net/api.php?action=fcm_public_config";
+    private static final String URL_CONFIG = "https://school.buddhaspinas.com/api.php?action=fcm_public_config";
 
     private FirebaseConfigManager() {}
 
@@ -51,11 +51,12 @@ public final class FirebaseConfigManager {
                 if (code >= 200 && code < 300) {
                     StringBuilder sb = new StringBuilder();
                     try (BufferedReader br = new BufferedReader(new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))) {
-                        String line; while ((line = br.readLine()) != null) sb.append(line);
+                        String line;
+                        while ((line = br.readLine()) != null) sb.append(line);
                     }
                     JSONObject j = new JSONObject(sb.toString());
                     if (!j.optBoolean("enabled", false)) {
-                        message = "FCM is disabled in Tutor admin";
+                        message = "FCM is disabled in BuddhaStudy admin";
                     } else {
                         String appId = j.optString("application_id", "");
                         String apiKey = j.optString("api_key", "");
@@ -71,7 +72,7 @@ public final class FirebaseConfigManager {
                             ok = initialize(context, appId, apiKey, projectId, senderId);
                             message = ok ? "Firebase ready" : "Firebase initialization failed";
                         } else {
-                            message = "Import google-services.json in Tutor admin first";
+                            message = "Import google-services.json in BuddhaStudy admin first";
                         }
                     }
                 } else {
@@ -91,8 +92,16 @@ public final class FirebaseConfigManager {
 
     public static synchronized boolean initialize(Context context, String appId, String apiKey, String projectId, String senderId) {
         try {
-            try { FirebaseApp.getInstance(); return true; } catch (IllegalStateException ignored) {}
-            if (appId == null || appId.isEmpty() || apiKey == null || apiKey.isEmpty() || projectId == null || projectId.isEmpty() || senderId == null || senderId.isEmpty()) return false;
+            // google-services.json normally creates the default Firebase app before this.
+            try {
+                FirebaseApp.getInstance();
+                return true;
+            } catch (IllegalStateException ignored) {}
+
+            if (appId == null || appId.isEmpty() || apiKey == null || apiKey.isEmpty() || projectId == null || projectId.isEmpty() || senderId == null || senderId.isEmpty()) {
+                return false;
+            }
+
             FirebaseOptions options = new FirebaseOptions.Builder()
                     .setApplicationId(appId)
                     .setApiKey(apiKey)
