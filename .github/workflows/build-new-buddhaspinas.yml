@@ -26,47 +26,35 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Force uploaded Buddhas Training logo into every launcher icon
+      - name: Verify uploaded Buddhas Training launcher logo
         run: |
           set -e
-          PAYLOAD="icon_payload/buddhas_training.jpg.b64"
-          test -f "$PAYLOAD"
-
-          # Remove stale payload/resource files left by older icon builds.
-          rm -f app/src/main/res/drawable/*.b64
-          rm -f app/src/main/res/drawable/app_icon.png app/src/main/res/drawable/app_icon.jpg
-          base64 -d "$PAYLOAD" > app/src/main/res/drawable/app_icon.jpg
-
+          EXPECTED="d0e7af83587427444d41adf129b840e5d4a7ad64887194abe9f1e72b23bab2d9"
+          test "$(sha256sum app/src/main/res/drawable/app_icon.png | awk '{print $1}')" = "$EXPECTED"
           for d in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
-            mkdir -p "app/src/main/res/$d"
-            rm -f "app/src/main/res/$d/ic_launcher.png" "app/src/main/res/$d/ic_launcher.jpg"
-            rm -f "app/src/main/res/$d/ic_launcher_round.png" "app/src/main/res/$d/ic_launcher_round.jpg"
-            cp app/src/main/res/drawable/app_icon.jpg "app/src/main/res/$d/ic_launcher.jpg"
-            cp app/src/main/res/drawable/app_icon.jpg "app/src/main/res/$d/ic_launcher_round.jpg"
+            test "$(sha256sum app/src/main/res/$d/ic_launcher.png | awk '{print $1}')" = "$EXPECTED"
+            test "$(sha256sum app/src/main/res/$d/ic_launcher_round.png | awk '{print $1}')" = "$EXPECTED"
           done
-
-          test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.jpg
-          test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.jpg
 
       - name: Build New BuddhasPinas APK
         run: gradle clean assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "New BuddhasPinas v1.0.3 Buddhas Training Logo.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "New BuddhasPinas v1.0.4 Buddhas Training Logo.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: New-BuddhasPinas-APK-v1.0.3-Buddhas-Training-Logo
-          path: "NewBuddhasPinas/New BuddhasPinas v1.0.3 Buddhas Training Logo.apk"
+          name: New-BuddhasPinas-APK-v1.0.4-Buddhas-Training-Logo
+          path: "NewBuddhasPinas/New BuddhasPinas v1.0.4 Buddhas Training Logo.apk"
           if-no-files-found: error
 
       - name: Package Android source code
         run: |
-          zip -r ../New-BuddhasPinas-Android-Source-v1.0.3.zip . \
+          zip -r ../New-BuddhasPinas-Android-Source-v1.0.4.zip . \
             -x "app/build/*" ".gradle/*" "build/*" "*.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: New-BuddhasPinas-Android-Source-v1.0.3
-          path: New-BuddhasPinas-Android-Source-v1.0.3.zip
+          name: New-BuddhasPinas-Android-Source-v1.0.4
+          path: New-BuddhasPinas-Android-Source-v1.0.4.zip
           if-no-files-found: error
