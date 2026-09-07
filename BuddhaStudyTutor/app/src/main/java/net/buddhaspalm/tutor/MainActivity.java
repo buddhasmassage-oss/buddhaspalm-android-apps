@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -53,11 +54,46 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         webView = new WebView(this);
         progress = new ProgressBar(this);
-        root.addView(webView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+
+        root.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
         pp.gravity = Gravity.CENTER;
         root.addView(progress, pp);
+
+        // Android 15+ forces apps targeting API 35 into edge-to-edge mode.
+        // Keep the website viewport inside the real system-bar safe area so the
+        // Tutor PWA header/logo/bell never sits under the phone status bar.
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int left;
+            int top;
+            int right;
+            int bottom;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                left = bars.left;
+                top = bars.top;
+                right = bars.right;
+                bottom = bars.bottom;
+            } else {
+                left = insets.getSystemWindowInsetLeft();
+                top = insets.getSystemWindowInsetTop();
+                right = insets.getSystemWindowInsetRight();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+
+            v.setPadding(left, top, right, bottom);
+            return insets;
+        });
+
         setContentView(root);
+        root.requestApplyInsets();
     }
 
     private void configureWebView() {
@@ -68,17 +104,34 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
+
+        // Match normal Chrome/PWA responsive sizing as closely as possible.
+        // Explicit values prevent device/WebView text scaling from making the
+        // Tutor design unexpectedly larger than the installed PWA.
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(false);
+        s.setTextZoom(100);
+        s.setDefaultFontSize(16);
+        s.setDefaultFixedFontSize(13);
         s.setSupportZoom(true);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhaStudyTutorAndroid/1.0");
+        webView.setInitialScale(0);
+
+        s.setUserAgentString(s.getUserAgentString() + " BuddhaStudyTutorAndroid/" + getAppVersion());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) s.setSafeBrowsingEnabled(true);
         webView.addJavascriptInterface(new NativeBridge(), "BuddhaTutorNative");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleUrl(request.getUrl().toString()); }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleUrl(url); }
-            @Override public void onPageFinished(WebView view, String url) { progress.setVisibility(View.GONE); injectToken(); }
+            @Override public void onPageFinished(WebView view, String url) {
+                progress.setVisibility(View.GONE);
+                // Reset accidental page zoom after navigation so native WebView
+                // presentation stays consistent with the Tutor PWA.
+                if (view.getScale() > 1.20f || view.getScale() < 0.80f) view.setInitialScale(0);
+                injectToken();
+            }
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
