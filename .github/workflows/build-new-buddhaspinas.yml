@@ -34,6 +34,7 @@ jobs:
             cp app/src/main/res/drawable/app_icon.png "app/src/main/res/$d/ic_launcher_round.png"
           done
           test "$(head -c 8 app/src/main/res/drawable/app_icon.png | xxd -p)" = "89504e470d0a1a0a"
+          rm -f app/src/main/res/drawable/*.b64
       - name: Build New BuddhasPinas APK
         run: gradle assembleDebug
       - name: Rename APK
