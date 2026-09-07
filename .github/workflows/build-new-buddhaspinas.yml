@@ -36,9 +36,9 @@ jobs:
       - name: Build installable debug APK
         run: gradle assembleDebug
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "New BuddhasPinas School v1.0.4.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "New BuddhasPinas School v1.0.5.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: New-BuddhasPinas-School-v1.0.4-APK
-          path: "NewBuddhasPinas/New BuddhasPinas School v1.0.4.apk"
+          name: New-BuddhasPinas-School-v1.0.5-APK
+          path: "NewBuddhasPinas/New BuddhasPinas School v1.0.5.apk"
           if-no-files-found: error
