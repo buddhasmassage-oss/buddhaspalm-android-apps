@@ -34,3 +34,12 @@ jobs:
           name: New-BuddhasPinas-APK
           path: "NewBuddhasPinas/New BuddhasPinas.apk"
           if-no-files-found: error
+      - name: Package Android source code
+        run: |
+          zip -r ../New-BuddhasPinas-Android-Source-v1.0.1.zip . \
+            -x "app/build/*" ".gradle/*" "build/*" "*.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: New-BuddhasPinas-Android-Source-v1.0.1
+          path: New-BuddhasPinas-Android-Source-v1.0.1.zip
+          if-no-files-found: error
