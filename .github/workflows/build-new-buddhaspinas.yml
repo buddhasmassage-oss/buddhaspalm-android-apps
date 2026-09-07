@@ -33,6 +33,16 @@ jobs:
           grep -q 'https://school.buddhaspinas.com/' app/src/main/java/net/buddhaspalm/school/MainActivity.java
           grep -q 'school.buddhaspinas.com' app/src/main/java/net/buddhaspalm/school/SchoolFirebaseConfigManager.java
           ! grep -R -n -E 'tutor\.buddhaspalm\.net|net\.buddhaspalm\.tutor' app/src app/google-services.json
+      - name: Diagnose school website connection
+        shell: bash
+        run: |
+          set +e
+          echo '=== DNS ==='
+          getent ahosts school.buddhaspinas.com
+          echo '=== HTTPS HEAD ==='
+          curl -I -L --connect-timeout 10 --max-time 25 -A 'Mozilla/5.0 Android Chrome' https://school.buddhaspinas.com/
+          echo "curl_exit=$?"
+          exit 0
       - name: Build installable debug APK
         run: gradle assembleDebug
       - name: Rename APK
