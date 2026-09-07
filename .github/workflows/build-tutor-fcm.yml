@@ -1,0 +1,36 @@
+name: Build BuddhaStudy Tutor FCM APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - buddhastudy-tutor-fcm-v1.1.0
+
+permissions:
+  contents: read
+
+jobs:
+  build-tutor-fcm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BuddhaStudyTutor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build Tutor APK
+        run: gradle assembleDebug
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk "BuddhaStudy Tutor FCM v1.1.0.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BuddhaStudy-Tutor-FCM-v1.1.0
+          path: "BuddhaStudyTutor/BuddhaStudy Tutor FCM v1.1.0.apk"
+          if-no-files-found: error
