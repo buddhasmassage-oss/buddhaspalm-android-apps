@@ -1,0 +1,1 @@
+The app launcher icon, in-app Buddha icon, and floating recorder ball are all wired to the same resource name: @drawable/ic_buddha. The current resource was recreated from the user's uploaded Buddha artwork so all three locations stay consistent.
