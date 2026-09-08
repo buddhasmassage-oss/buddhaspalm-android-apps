@@ -30,9 +30,9 @@ jobs:
       - name: Build recorder APK
         run: gradle assembleDebug --stacktrace
       - name: Rename recorder APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Screen Recorder v1.2.1.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Screen Recorder v1.3.0.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Screen-Recorder-APK-v1.2.1
-          path: 'BuddhasScreenRecorder/Buddhas Screen Recorder v1.2.1.apk'
+          name: Buddhas-Screen-Recorder-APK-v1.3.0
+          path: 'BuddhasScreenRecorder/Buddhas Screen Recorder v1.3.0.apk'
           if-no-files-found: error
