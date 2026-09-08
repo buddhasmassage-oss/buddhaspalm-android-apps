@@ -90,7 +90,7 @@ public class MainActivity extends Activity {
         title.setTextSize(19);
         title.setTypeface(null, 1);
         TextView sub = new TextView(this);
-        sub.setText("screenrecord.buddhaspinas.com • v1.2.0");
+        sub.setText("screenrecord.buddhaspinas.com • v1.2.1");
         sub.setTextColor(Color.rgb(224, 194, 103));
         sub.setTextSize(11);
         titleWrap.addView(title);
@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " BuddhasScreenRecorder/1.2.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " BuddhasScreenRecorder/1.2.1");
         CookieManager.getInstance().setAcceptCookie(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.addJavascriptInterface(new NativeBridge(), "BuddhasNative");
@@ -196,6 +196,7 @@ public class MainActivity extends Activity {
     private void injectNativeFallback() {
         if (webView == null) return;
         String js = "(function(){window.__BUDDHAS_NATIVE_RECORDER__=true;" +
+                "if(!window.__BUDDHAS_NATIVE_CLICK_BOUND__){window.__BUDDHAS_NATIVE_CLICK_BOUND__=true;document.addEventListener('click',function(e){var t=e.target;var b=t&&t.closest?t.closest('#startBtn'):null;if(b&&window.BuddhasNative&&typeof window.BuddhasNative.startRecording==='function'){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();window.BuddhasNative.startRecording();}},true);}" +
                 "var b=document.getElementById('startBtn');if(b){b.disabled=false;}" +
                 "var l=document.getElementById('secureLabel');if(l)l.textContent='Native Android recorder ready';" +
                 "var s=document.getElementById('supportText');if(s)s.textContent='Use Start Recording for Android whole-screen capture. MP4 saves on this phone.';" +
@@ -336,23 +337,15 @@ public class MainActivity extends Activity {
 
     private class NativeBridge {
         @JavascriptInterface
-        public void startRecording() {
-            runOnUiThread(() -> requestCapture());
-        }
+        public void startRecording() { runOnUiThread(() -> requestCapture()); }
 
         @JavascriptInterface
-        public void openPhoneRecordings() {
-            runOnUiThread(() -> openPhoneRecordings());
-        }
+        public void openPhoneRecordings() { runOnUiThread(() -> openPhoneRecordings()); }
 
         @JavascriptInterface
-        public void enableFloatingBall() {
-            runOnUiThread(() -> enableFloatingBall());
-        }
+        public void enableFloatingBall() { runOnUiThread(() -> enableFloatingBall()); }
 
         @JavascriptInterface
-        public String getVersion() {
-            return "1.2.0";
-        }
+        public String getVersion() { return "1.2.1"; }
     }
 }
