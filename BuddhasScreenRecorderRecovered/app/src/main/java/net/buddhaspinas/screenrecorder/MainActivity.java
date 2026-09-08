@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasScreenRecorder/1.4.0");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasScreenRecorder/1.5.0");
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new NativeBridge(), "BuddhasNative");
