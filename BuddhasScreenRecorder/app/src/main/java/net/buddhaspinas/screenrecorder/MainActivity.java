@@ -19,6 +19,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.URLUtil;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -62,9 +63,7 @@ public class MainActivity extends Activity {
     }
 
     private void handleIntent(Intent intent) {
-        if (intent != null && ACTION_REQUEST_CAPTURE.equals(intent.getAction())) {
-            requestCapture();
-        }
+        if (intent != null && ACTION_REQUEST_CAPTURE.equals(intent.getAction())) requestCapture();
     }
 
     private void buildUi() {
@@ -91,7 +90,7 @@ public class MainActivity extends Activity {
         title.setTextSize(19);
         title.setTypeface(null, 1);
         TextView sub = new TextView(this);
-        sub.setText("screenrecord.buddhaspinas.com • v1.1.0");
+        sub.setText("screenrecord.buddhaspinas.com • v1.2.0");
         sub.setTextColor(Color.rgb(224, 194, 103));
         sub.setTextSize(11);
         titleWrap.addView(title);
@@ -108,23 +107,28 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        Button bubbleButton = actionButton("Enable Floating Ball");
+        Button bubbleButton = actionButton("Floating Ball");
         bubbleButton.setOnClickListener(v -> enableFloatingBall());
         row.addView(bubbleButton, new LinearLayout.LayoutParams(0, dp(46), 1));
-
         View gap = new View(this);
         row.addView(gap, new LinearLayout.LayoutParams(dp(8), 1));
-
         Button recordButton = actionButton("Start Recording");
         recordButton.setOnClickListener(v -> requestCapture());
         row.addView(recordButton, new LinearLayout.LayoutParams(0, dp(46), 1));
         controls.addView(row);
 
-        Button browserButton = actionButton("Open Browser / Other Website");
-        LinearLayout.LayoutParams browserLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
-        browserLp.topMargin = dp(8);
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.setPadding(0, dp(8), 0, 0);
+        Button phoneRecordings = actionButton("My Phone Recordings");
+        phoneRecordings.setOnClickListener(v -> openPhoneRecordings());
+        row2.addView(phoneRecordings, new LinearLayout.LayoutParams(0, dp(44), 1));
+        View gap2 = new View(this);
+        row2.addView(gap2, new LinearLayout.LayoutParams(dp(8), 1));
+        Button browserButton = actionButton("Open Browser");
         browserButton.setOnClickListener(v -> openDefaultBrowser());
-        controls.addView(browserButton, browserLp);
+        row2.addView(browserButton, new LinearLayout.LayoutParams(0, dp(44), 1));
+        controls.addView(row2);
 
         micCheck = new CheckBox(this);
         micCheck.setText("Record microphone audio");
@@ -133,7 +137,7 @@ public class MainActivity extends Activity {
         controls.addView(micCheck, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         statusText = new TextView(this);
-        statusText.setText("Ready. Android will ask permission before every new whole-screen capture session.");
+        statusText.setText("Native Android recorder ready. MP4 files save to Movies/Buddhas Screen Recorder.");
         statusText.setTextColor(Color.rgb(95, 95, 95));
         statusText.setTextSize(12);
         controls.addView(statusText);
@@ -146,24 +150,24 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " BuddhasScreenRecorder/1.1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " BuddhasScreenRecorder/1.2.0");
         CookieManager.getInstance().setAcceptCookie(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+        webView.addJavascriptInterface(new NativeBridge(), "BuddhasNative");
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
-                if (host != null && host.endsWith("buddhaspinas.com")) {
-                    return false;
-                }
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                } catch (Exception ignored) {
-                }
+                if (host != null && host.endsWith("buddhaspinas.com")) return false;
+                try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) {}
                 return true;
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                injectNativeFallback();
             }
         });
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
@@ -189,6 +193,16 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+    private void injectNativeFallback() {
+        if (webView == null) return;
+        String js = "(function(){window.__BUDDHAS_NATIVE_RECORDER__=true;" +
+                "var b=document.getElementById('startBtn');if(b){b.disabled=false;}" +
+                "var l=document.getElementById('secureLabel');if(l)l.textContent='Native Android recorder ready';" +
+                "var s=document.getElementById('supportText');if(s)s.textContent='Use Start Recording for Android whole-screen capture. MP4 saves on this phone.';" +
+                "var p=document.getElementById('phoneRecordingsBtn');if(p)p.classList.remove('hidden');})();";
+        webView.evaluateJavascript(js, null);
+    }
+
     private Button actionButton(String text) {
         Button b = new Button(this);
         b.setText(text);
@@ -205,8 +219,7 @@ public class MainActivity extends Activity {
     private void enableFloatingBall() {
         if (!Settings.canDrawOverlays(this)) {
             waitingForOverlay = true;
-            Intent permissionIntent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
+            Intent permissionIntent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
             startActivity(permissionIntent);
             statusText.setText("Allow 'Display over other apps', then return here.");
             return;
@@ -219,27 +232,27 @@ public class MainActivity extends Activity {
             Intent service = new Intent(this, OverlayService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service);
             else startService(service);
-            statusText.setText("Floating Buddha ball enabled. You can now open Chrome or another app.");
+            statusText.setText("Floating Buddha ball enabled. Open Chrome or another app and keep recording.");
         } catch (Exception e) {
             Toast.makeText(this, "Unable to start floating control: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
     private void requestCapture() {
-        if (micCheck != null && micCheck.isChecked() &&
-                checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (micCheck != null && micCheck.isChecked() && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             pendingCaptureAfterAudio = true;
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_AUDIO);
             return;
         }
         Intent captureIntent;
-        if (Build.VERSION.SDK_INT >= 34) {
-            captureIntent = projectionManager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay());
-        } else {
-            captureIntent = projectionManager.createScreenCaptureIntent();
-        }
+        if (Build.VERSION.SDK_INT >= 34) captureIntent = projectionManager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay());
+        else captureIntent = projectionManager.createScreenCaptureIntent();
         startActivityForResult(captureIntent, REQ_CAPTURE);
         if (statusText != null) statusText.setText("Waiting for Android whole-screen capture permission…");
+    }
+
+    private void openPhoneRecordings() {
+        startActivity(new Intent(this, RecordingsActivity.class));
     }
 
     private void openDefaultBrowser() {
@@ -249,7 +262,7 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))); } catch (Exception ignored) {}
         }
-        if (statusText != null) statusText.setText("Browser opened. The floating ball stays available; start or control recording from it.");
+        if (statusText != null) statusText.setText("Browser opened. The floating ball stays available over other apps.");
     }
 
     @Override
@@ -257,9 +270,8 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_AUDIO && pendingCaptureAfterAudio) {
             pendingCaptureAfterAudio = false;
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                requestCapture();
-            } else {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) requestCapture();
+            else {
                 if (micCheck != null) micCheck.setChecked(false);
                 Toast.makeText(this, "Microphone denied. Recording will continue without microphone audio.", Toast.LENGTH_LONG).show();
                 requestCapture();
@@ -286,14 +298,12 @@ public class MainActivity extends Activity {
         serviceIntent.putExtra(RecorderService.EXTRA_WIDTH, metrics.widthPixels);
         serviceIntent.putExtra(RecorderService.EXTRA_HEIGHT, metrics.heightPixels);
         serviceIntent.putExtra(RecorderService.EXTRA_DENSITY, metrics.densityDpi);
-        serviceIntent.putExtra(RecorderService.EXTRA_MIC,
-                micCheck != null && micCheck.isChecked() &&
-                        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED);
+        serviceIntent.putExtra(RecorderService.EXTRA_MIC, micCheck != null && micCheck.isChecked() && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent);
         else startService(serviceIntent);
         if (Settings.canDrawOverlays(this)) startOverlayService();
-        if (statusText != null) statusText.setText("Recording started. Open any website/app; use the floating Buddha ball to pause, resume, or stop.");
+        if (statusText != null) statusText.setText("RECORDING • Open any website/app. Tap the floating Buddha ball → Stop & Save when finished.");
         Toast.makeText(this, "Whole-screen MP4 recording started", Toast.LENGTH_SHORT).show();
         moveTaskToBack(true);
     }
@@ -305,6 +315,7 @@ public class MainActivity extends Activity {
             waitingForOverlay = false;
             startOverlayService();
         }
+        injectNativeFallback();
     }
 
     @Override
@@ -314,13 +325,34 @@ public class MainActivity extends Activity {
     }
 
     private void requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFICATIONS);
         }
     }
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private class NativeBridge {
+        @JavascriptInterface
+        public void startRecording() {
+            runOnUiThread(() -> requestCapture());
+        }
+
+        @JavascriptInterface
+        public void openPhoneRecordings() {
+            runOnUiThread(() -> openPhoneRecordings());
+        }
+
+        @JavascriptInterface
+        public void enableFloatingBall() {
+            runOnUiThread(() -> enableFloatingBall());
+        }
+
+        @JavascriptInterface
+        public String getVersion() {
+            return "1.2.0";
+        }
     }
 }
