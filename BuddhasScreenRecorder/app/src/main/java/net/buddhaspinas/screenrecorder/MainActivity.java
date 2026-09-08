@@ -2,19 +2,24 @@ package net.buddhaspinas.screenrecorder;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.media.projection.MediaProjectionConfig;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
+import android.webkit.URLUtil;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -86,7 +91,7 @@ public class MainActivity extends Activity {
         title.setTextSize(19);
         title.setTypeface(null, 1);
         TextView sub = new TextView(this);
-        sub.setText("screenrecord.buddhaspinas.com");
+        sub.setText("screenrecord.buddhaspinas.com • v1.1.0");
         sub.setTextColor(Color.rgb(224, 194, 103));
         sub.setTextSize(11);
         titleWrap.addView(title);
@@ -115,6 +120,12 @@ public class MainActivity extends Activity {
         row.addView(recordButton, new LinearLayout.LayoutParams(0, dp(46), 1));
         controls.addView(row);
 
+        Button browserButton = actionButton("Open Browser / Other Website");
+        LinearLayout.LayoutParams browserLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        browserLp.topMargin = dp(8);
+        browserButton.setOnClickListener(v -> openDefaultBrowser());
+        controls.addView(browserButton, browserLp);
+
         micCheck = new CheckBox(this);
         micCheck.setText("Record microphone audio");
         micCheck.setChecked(true);
@@ -122,7 +133,7 @@ public class MainActivity extends Activity {
         controls.addView(micCheck, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         statusText = new TextView(this);
-        statusText.setText("Ready. Android will ask permission before every new screen-capture session.");
+        statusText.setText("Ready. Android will ask permission before every new whole-screen capture session.");
         statusText.setTextColor(Color.rgb(95, 95, 95));
         statusText.setTextSize(12);
         controls.addView(statusText);
@@ -135,6 +146,11 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
+        settings.setUserAgentString(settings.getUserAgentString() + " BuddhasScreenRecorder/1.1.0");
+        CookieManager.getInstance().setAcceptCookie(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+        }
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -148,6 +164,24 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) {
                 }
                 return true;
+            }
+        });
+        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            try {
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                request.setMimeType(mimeType);
+                request.addRequestHeader("User-Agent", userAgent);
+                String cookies = CookieManager.getInstance().getCookie(url);
+                if (cookies != null && !cookies.isEmpty()) request.addRequestHeader("Cookie", cookies);
+                String fileName = URLUtil.guessFileName(url, contentDisposition, mimeType);
+                request.setTitle(fileName);
+                request.setDescription("Buddhas Screen Recorder download");
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+                ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
+                Toast.makeText(this, "Download started: " + fileName, Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) {}
             }
         });
         webView.loadUrl(SITE_URL);
@@ -182,8 +216,10 @@ public class MainActivity extends Activity {
 
     private void startOverlayService() {
         try {
-            startService(new Intent(this, OverlayService.class));
-            statusText.setText("Floating Buddha ball enabled. You can now open another app.");
+            Intent service = new Intent(this, OverlayService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service);
+            else startService(service);
+            statusText.setText("Floating Buddha ball enabled. You can now open Chrome or another app.");
         } catch (Exception e) {
             Toast.makeText(this, "Unable to start floating control: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
@@ -196,11 +232,24 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_AUDIO);
             return;
         }
-        Intent captureIntent = projectionManager.createScreenCaptureIntent();
-        startActivityForResult(captureIntent, REQ_CAPTURE);
-        if (statusText != null) {
-            statusText.setText("Waiting for Android screen-capture permission…");
+        Intent captureIntent;
+        if (Build.VERSION.SDK_INT >= 34) {
+            captureIntent = projectionManager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay());
+        } else {
+            captureIntent = projectionManager.createScreenCaptureIntent();
         }
+        startActivityForResult(captureIntent, REQ_CAPTURE);
+        if (statusText != null) statusText.setText("Waiting for Android whole-screen capture permission…");
+    }
+
+    private void openDefaultBrowser() {
+        try {
+            Intent browser = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER);
+            startActivity(browser);
+        } catch (Exception e) {
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"))); } catch (Exception ignored) {}
+        }
+        if (statusText != null) statusText.setText("Browser opened. The floating ball stays available; start or control recording from it.");
     }
 
     @Override
@@ -241,14 +290,11 @@ public class MainActivity extends Activity {
                 micCheck != null && micCheck.isChecked() &&
                         checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent);
+        else startService(serviceIntent);
         if (Settings.canDrawOverlays(this)) startOverlayService();
-        if (statusText != null) statusText.setText("Recording started. Use the floating Buddha ball to pause, resume, or stop.");
-        Toast.makeText(this, "Screen recording started", Toast.LENGTH_SHORT).show();
+        if (statusText != null) statusText.setText("Recording started. Open any website/app; use the floating Buddha ball to pause, resume, or stop.");
+        Toast.makeText(this, "Whole-screen MP4 recording started", Toast.LENGTH_SHORT).show();
         moveTaskToBack(true);
     }
 
@@ -263,11 +309,8 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        if (webView != null && webView.canGoBack()) webView.goBack();
+        else super.onBackPressed();
     }
 
     private void requestNotificationPermissionIfNeeded() {
