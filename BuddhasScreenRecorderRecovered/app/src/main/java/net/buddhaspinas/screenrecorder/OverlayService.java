@@ -16,7 +16,8 @@ public class OverlayService extends Service {
         wm=(WindowManager)getSystemService(WINDOW_SERVICE);
         ball=new ImageView(this);
         ball.setImageResource(R.drawable.ic_buddha);
-        ball.setPadding(6,6,6,6);
+        ball.setPadding(0,0,0,0);
+        ball.setScaleType(ImageView.ScaleType.FIT_CENTER);
         int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
         WindowManager.LayoutParams lp=new WindowManager.LayoutParams(88,88,type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);
         lp.gravity=Gravity.TOP|Gravity.START; lp.x=16; lp.y=220;
