@@ -1,0 +1,3 @@
+Buddhas Screen Recorder v1.5.0
+Updated 2026-09-08
+Exact uploaded Buddha artwork is the launcher icon and floating recorder ball. Website/PWA v2.7.0 uses the same artwork in Ready to record and app icons.
