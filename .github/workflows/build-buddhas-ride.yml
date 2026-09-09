@@ -27,25 +27,28 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Verify isolated stable Buddhas Ride project
+      - name: Verify Buddhas Ride v1.0.4 in-app build
         run: |
           grep -q "applicationId 'com.buddhaspinas.buddhasride'" app/build.gradle
-          grep -q "versionName '1.0.3'" app/build.gradle
+          grep -q "versionName '1.0.4'" app/build.gradle
           grep -q "id 'com.google.gms.google-services'" app/build.gradle
           grep -q 'com.buddhaspinas.buddhasride' app/google-services.json
-          grep -q 'requestFcmToken' app/src/main/java/com/buddhaspinas/buddhasride/MainActivity.java
+          grep -q 'StableMainActivity' app/src/main/AndroidManifest.xml
+          grep -q 'BuddhasRideAndroid/1.0.4' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
           grep -q 'FirebaseMessagingService' app/src/main/java/com/buddhaspinas/buddhasride/BuddhasRideFirebaseMessagingService.java
-          grep -q 'https://rider.buddhaspinas.com/' app/src/main/java/com/buddhaspinas/buddhasride/MainActivity.java
+          grep -q 'StableMainActivity.class' app/src/main/java/com/buddhaspinas/buddhasride/BuddhasRideFirebaseMessagingService.java
+          ! grep -q 'Opening Buddhas Ride in your browser' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
           ! grep -R -n 'com.onesignal' app/src app/build.gradle
           ! grep -R -n 'RECORD_AUDIO' app/src/main
           test -f app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -f app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          test -f app/src/main/res/drawable-nodpi/buddhas_ride_logo.png
       - name: Build installable debug APK
         run: gradle assembleDebug --stacktrace
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride v1.0.3 Stable.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride v1.0.4 In-App Fixed.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Ride-v1.0.3-Stable-APK
-          path: "BuddhasRideAndroid/Buddhas Ride v1.0.3 Stable.apk"
+          name: Buddhas-Ride-v1.0.4-In-App-Fixed-APK
+          path: "BuddhasRideAndroid/Buddhas Ride v1.0.4 In-App Fixed.apk"
           if-no-files-found: error
