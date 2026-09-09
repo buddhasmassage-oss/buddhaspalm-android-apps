@@ -3,7 +3,7 @@ name: Build Buddhas Screen Recorder APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, screen-recorder-v1-4-0-exact-edit ]
     paths:
       - 'BuddhasScreenRecorder/**'
       - '.github/workflows/build-screen-recorder.yml'
