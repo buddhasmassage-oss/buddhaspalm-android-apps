@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.provider.Settings;
@@ -39,12 +40,10 @@ public class OverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-
         if (!Settings.canDrawOverlays(this)) {
             stopSelf();
             return;
         }
-
         createChannel();
         if (!enterForegroundSafely()) {
             stopSelf();
@@ -67,9 +66,7 @@ public class OverlayService extends Service {
         try {
             Notification notification = buildNotification();
             if (Build.VERSION.SDK_INT >= 34) {
-                startForeground(
-                        NOTIFICATION_ID,
-                        notification,
+                startForeground(NOTIFICATION_ID, notification,
                         ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             } else {
                 startForeground(NOTIFICATION_ID, notification);
@@ -102,94 +99,67 @@ public class OverlayService extends Service {
         if (wm == null) throw new IllegalStateException("WindowManager unavailable");
 
         overlay = new LinearLayout(this);
-        overlay.setOrientation(LinearLayout.VERTICAL);
-        overlay.setGravity(Gravity.CENTER_HORIZONTAL);
-        overlay.setPadding(dp(5), dp(5), dp(5), dp(5));
+        overlay.setOrientation(LinearLayout.HORIZONTAL);
+        overlay.setGravity(Gravity.CENTER_VERTICAL);
+        overlay.setPadding(dp(4), dp(4), dp(4), dp(4));
 
         ImageView ball = new ImageView(this);
         ball.setImageResource(R.drawable.app_logo);
-        ball.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        ball.setScaleType(ImageView.ScaleType.FIT_CENTER);
         ball.setContentDescription("Buddhas floating recorder");
 
         GradientDrawable ballBg = new GradientDrawable();
-        ballBg.setColor(Color.WHITE);
+        ballBg.setColor(Color.argb(245, 255, 255, 255));
         ballBg.setShape(GradientDrawable.OVAL);
         ballBg.setStroke(dp(2), Color.rgb(212, 175, 55));
         ball.setBackground(ballBg);
         ball.setClipToOutline(true);
-        ball.setPadding(dp(3), dp(3), dp(3), dp(3));
-        overlay.addView(ball, new LinearLayout.LayoutParams(dp(60), dp(60)));
+        ball.setPadding(dp(2), dp(2), dp(2), dp(2));
+        overlay.addView(ball, new LinearLayout.LayoutParams(dp(64), dp(64)));
 
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setVisibility(View.GONE);
-        controls.setPadding(dp(4), dp(6), dp(4), 0);
-        overlay.addView(controls,
-                new LinearLayout.LayoutParams(dp(132), LinearLayout.LayoutParams.WRAP_CONTENT));
+        controls.setPadding(dp(7), dp(7), dp(7), dp(7));
+        GradientDrawable panelBg = new GradientDrawable();
+        panelBg.setColor(Color.argb(248, 17, 24, 39));
+        panelBg.setStroke(dp(1), Color.rgb(75, 85, 99));
+        panelBg.setCornerRadius(dp(14));
+        controls.setBackground(panelBg);
+        LinearLayout.LayoutParams panelParams = new LinearLayout.LayoutParams(
+                dp(200), LinearLayout.LayoutParams.WRAP_CONTENT);
+        panelParams.leftMargin = dp(6);
+        overlay.addView(controls, panelParams);
 
-        Button start = button("Start");
-        Button pause = button(RecorderService.isPaused ? "Resume" : "Pause");
-        Button stop = button("Stop & Save");
-        Button files = button("Files");
+        Button start = button("Start Whole Screen");
+        Button pause = button("Pause");
+        Button resume = button("Resume");
+        Button stop = button("Stop & Save MP4");
+        Button files = button("Phone Files");
+        Button editor = button("Video Editor");
+        Button browser = button("Open Browser");
+        Button recorder = button("Open Recorder");
+        Button hide = button("Hide Floating Ball");
+
         controls.addView(start);
         controls.addView(pause);
+        controls.addView(resume);
         controls.addView(stop);
         controls.addView(files);
+        controls.addView(editor);
+        controls.addView(browser);
+        controls.addView(recorder);
+        controls.addView(hide);
 
-        start.setOnClickListener(v -> {
-            controls.setVisibility(View.GONE);
-            try {
-                Intent i = new Intent(this, MainActivity.class)
-                        .setAction(MainActivity.ACTION_REQUEST_CAPTURE)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                startActivity(i);
-            } catch (Exception e) {
-                Log.e(TAG, "Unable to open recording permission screen", e);
-                Toast.makeText(this, "Could not open recorder", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        pause.setOnClickListener(v -> {
-            if (!RecorderService.isRecording) {
-                Toast.makeText(this, "Start recording first", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            String action = RecorderService.isPaused
-                    ? RecorderService.ACTION_RESUME
-                    : RecorderService.ACTION_PAUSE;
-            try {
-                startService(new Intent(this, RecorderService.class).setAction(action));
-                pause.postDelayed(() ->
-                        pause.setText(RecorderService.isPaused ? "Resume" : "Pause"), 250);
-            } catch (Exception e) {
-                Log.e(TAG, "Pause/resume failed", e);
-                Toast.makeText(this, "Could not change recording state", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        stop.setOnClickListener(v -> {
-            if (RecorderService.isRecording) {
-                try {
-                    startService(new Intent(this, RecorderService.class)
-                            .setAction(RecorderService.ACTION_STOP));
-                } catch (Exception e) {
-                    Log.e(TAG, "Stop recording failed", e);
-                    Toast.makeText(this, "Could not stop recording", Toast.LENGTH_SHORT).show();
-                }
-            }
-            controls.setVisibility(View.GONE);
-        });
-
-        files.setOnClickListener(v -> {
-            try {
-                startActivity(new Intent(this, RecordingsActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                controls.setVisibility(View.GONE);
-            } catch (Exception e) {
-                Log.e(TAG, "Unable to open recordings", e);
-                Toast.makeText(this, "Could not open recordings", Toast.LENGTH_SHORT).show();
-            }
-        });
+        start.setOnClickListener(v -> requestNewCapture());
+        pause.setOnClickListener(v -> sendRecorderAction(RecorderService.ACTION_PAUSE));
+        resume.setOnClickListener(v -> sendRecorderAction(RecorderService.ACTION_RESUME));
+        stop.setOnClickListener(v -> sendRecorderAction(RecorderService.ACTION_STOP));
+        files.setOnClickListener(v -> openFiles());
+        editor.setOnClickListener(v -> openEditor());
+        browser.setOnClickListener(v -> openBrowser());
+        recorder.setOnClickListener(v -> openRecorder());
+        hide.setOnClickListener(v -> stopSelf());
 
         int type = Build.VERSION.SDK_INT >= 26
                 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -198,11 +168,12 @@ public class OverlayService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = dp(14);
-        params.y = dp(150);
+        params.x = dp(12);
+        params.y = dp(160);
 
         ball.setOnTouchListener((v, event) -> {
             switch (event.getActionMasked()) {
@@ -213,56 +184,160 @@ public class OverlayService extends Service {
                     startY = params.y;
                     moved = false;
                     return true;
-
                 case MotionEvent.ACTION_MOVE:
                     int dx = Math.round(event.getRawX() - downX);
                     int dy = Math.round(event.getRawY() - downY);
                     if (Math.abs(dx) > dp(4) || Math.abs(dy) > dp(4)) moved = true;
-                    params.x = startX + dx;
-                    params.y = startY + dy;
+                    params.x = Math.max(0, startX + dx);
+                    params.y = Math.max(0, startY + dy);
                     try {
                         wm.updateViewLayout(overlay, params);
                     } catch (Exception e) {
                         Log.w(TAG, "Overlay move ignored", e);
                     }
                     return true;
-
                 case MotionEvent.ACTION_UP:
-                    if (!moved) {
-                        pause.setText(RecorderService.isPaused ? "Resume" : "Pause");
-                        start.setVisibility(RecorderService.isRecording ? View.GONE : View.VISIBLE);
-                        pause.setVisibility(RecorderService.isRecording ? View.VISIBLE : View.GONE);
-                        stop.setVisibility(RecorderService.isRecording ? View.VISIBLE : View.GONE);
-                        controls.setVisibility(
-                                controls.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
-                    }
+                    if (!moved) toggleMenu();
                     return true;
+                default:
+                    return false;
             }
-            return false;
         });
 
         wm.addView(overlay, params);
     }
 
+    private void toggleMenu() {
+        if (controls == null) return;
+        controls.setVisibility(controls.getVisibility() == View.VISIBLE
+                ? View.GONE : View.VISIBLE);
+        try {
+            if (wm != null && overlay != null && params != null) {
+                wm.updateViewLayout(overlay, params);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not resize floating menu", e);
+        }
+    }
+
+    private void closeMenu() {
+        if (controls != null) controls.setVisibility(View.GONE);
+    }
+
+    private void requestNewCapture() {
+        if (RecorderService.isRecording) {
+            Toast.makeText(this, "A recording is already running", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        closeMenu();
+        try {
+            Intent i = new Intent(this, MainActivity.class)
+                    .setAction(MainActivity.ACTION_REQUEST_CAPTURE)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(i);
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to open recording permission screen", e);
+            Toast.makeText(this, "Could not open recorder", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void sendRecorderAction(String action) {
+        if (!RecorderService.isRecording) {
+            Toast.makeText(this, "Start recording first", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (RecorderService.ACTION_PAUSE.equals(action) && RecorderService.isPaused) {
+            Toast.makeText(this, "Recording is already paused", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (RecorderService.ACTION_RESUME.equals(action) && !RecorderService.isPaused) {
+            Toast.makeText(this, "Recording is already running", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            startService(new Intent(this, RecorderService.class).setAction(action));
+            if (RecorderService.ACTION_STOP.equals(action) ||
+                    RecorderService.ACTION_RESUME.equals(action)) {
+                closeMenu();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Recorder action failed: " + action, e);
+            Toast.makeText(this, "Recording control failed", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openFiles() {
+        closeMenu();
+        try {
+            startActivity(new Intent(this, RecordingsActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to open recordings", e);
+            Toast.makeText(this, "Could not open phone recordings", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openEditor() {
+        closeMenu();
+        try {
+            startActivity(new Intent(this, MainActivity.class)
+                    .setAction(MainActivity.ACTION_OPEN_EDITOR)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to open editor", e);
+            Toast.makeText(this, "Could not open editor", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openBrowser() {
+        closeMenu();
+        try {
+            Intent browser = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER);
+            browser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(browser);
+        } catch (Exception first) {
+            try {
+                Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"));
+                web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(web);
+            } catch (Exception second) {
+                Log.e(TAG, "Unable to open browser", second);
+                Toast.makeText(this, "Could not open browser", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void openRecorder() {
+        closeMenu();
+        try {
+            startActivity(new Intent(this, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to open main recorder", e);
+            Toast.makeText(this, "Could not open recorder", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private Button button(String text) {
         Button b = new Button(this);
         b.setText(text);
-        b.setTextSize(12);
+        b.setTextSize(11);
         b.setTextColor(Color.WHITE);
         b.setAllCaps(false);
+        b.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         b.setMinHeight(0);
         b.setMinWidth(0);
-        b.setPadding(dp(8), dp(5), dp(8), dp(5));
+        b.setPadding(dp(11), 0, dp(8), 0);
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.rgb(17, 24, 39));
-        bg.setStroke(dp(1), Color.rgb(64, 78, 103));
-        bg.setCornerRadius(dp(11));
+        bg.setColor(Color.rgb(31, 41, 55));
+        bg.setStroke(dp(1), Color.rgb(75, 85, 99));
+        bg.setCornerRadius(dp(10));
         b.setBackground(bg);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(42));
-        lp.topMargin = dp(4);
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(36));
+        lp.topMargin = dp(3);
         b.setLayoutParams(lp);
         return b;
     }
@@ -277,7 +352,7 @@ public class OverlayService extends Service {
                 : new Notification.Builder(this);
         return b.setSmallIcon(R.drawable.ic_stat_recorder)
                 .setContentTitle("Buddhas floating recorder")
-                .setContentText("Floating recording control is active")
+                .setContentText("Floating recording controls are active")
                 .setContentIntent(pi)
                 .setCategory(Notification.CATEGORY_SERVICE)
                 .setOnlyAlertOnce(true)
@@ -291,7 +366,7 @@ public class OverlayService extends Service {
                     CHANNEL_ID,
                     "Floating recorder",
                     NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("Keeps the draggable screen-recording control active over other apps.");
+            ch.setDescription("Keeps the draggable screen-recording controls active over other apps.");
             ch.setShowBadge(false);
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
                     .createNotificationChannel(ch);
