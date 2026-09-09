@@ -13,6 +13,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsetsController;
@@ -86,7 +87,7 @@ public class MainActivity extends Activity {
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString()+" BuddhasRideProviderAndroid/1.0.0");
+        s.setUserAgentString(s.getUserAgentString()+" BuddhasRideProviderAndroid/1.1.0");
         CookieManager cm=CookieManager.getInstance();cm.setAcceptCookie(true);try{cm.setAcceptThirdPartyCookies(webView,true);}catch(Throwable ignored){}
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         webView.addJavascriptInterface(new ProviderBridge(),"BuddhasRideProviderAndroid");
@@ -101,6 +102,7 @@ public class MainActivity extends Activity {
             CookieManager.getInstance().flush();
             if(splashOverlay!=null&&splashOverlay.getVisibility()==View.VISIBLE){splashOverlay.animate().alpha(0f).setDuration(200).withEndAction(()->splashOverlay.setVisibility(View.GONE)).start();}
             try{view.evaluateJavascript("(function(){document.documentElement.style.webkitTextSizeAdjust='100%';window.BuddhasRideProviderNative=true;window.dispatchEvent(new Event('br:provider-native-ready'));})();",null);}catch(Throwable ignored){}
+            registerNativeDevice();
         }
         @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error){
             if(request.isForMainFrame()){if(splashOverlay!=null)splashOverlay.setVisibility(View.GONE);Toast.makeText(MainActivity.this,"Unable to load Buddhas Ride Provider. Check your internet connection.",Toast.LENGTH_LONG).show();}
@@ -134,6 +136,12 @@ public class MainActivity extends Activity {
         return HOME_URL;
     }
 
+    private void registerNativeDevice(){
+        final String cookie=CookieManager.getInstance().getCookie(HOME_URL);if(cookie==null||cookie.trim().isEmpty())return;
+        final String deviceId=Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);if(deviceId==null||deviceId.isEmpty())return;
+        new Thread(()->{java.net.HttpURLConnection c=null;try{java.net.URL u=new java.net.URL("https://rider.buddhaspinas.com/api/provider-device.php");c=(java.net.HttpURLConnection)u.openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(8000);c.setRequestProperty("Cookie",cookie);c.setRequestProperty("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");String body="device_id="+java.net.URLEncoder.encode(deviceId,"UTF-8")+"&device_label="+java.net.URLEncoder.encode((Build.MANUFACTURER+" "+Build.MODEL).trim(),"UTF-8")+"&platform=android-provider&app_version=1.1.0";byte[] bytes=body.getBytes(java.nio.charset.StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(java.io.OutputStream os=c.getOutputStream()){os.write(bytes);}c.getResponseCode();}catch(Exception ignored){}finally{if(c!=null)c.disconnect();}}).start();
+    }
+
     private void startDutyService(){
         String cookie=CookieManager.getInstance().getCookie(HOME_URL);if(cookie==null||cookie.trim().isEmpty())return;
         Intent i=new Intent(this,ProviderDutyService.class);i.setAction(ProviderDutyService.ACTION_START);i.putExtra(ProviderDutyService.EXTRA_COOKIE,cookie);
@@ -144,7 +152,11 @@ public class MainActivity extends Activity {
     public class ProviderBridge{
         @JavascriptInterface public void setDuty(boolean active){runOnUiThread(()->{if(active)startDutyService();else stopDutyService();});}
         @JavascriptInterface public void notifyJob(String title,String message,String url){runOnUiThread(()->showLocalJobNotification(title,message,url));}
-        @JavascriptInterface public String getAppVersion(){return "1.0.0";}
+        @JavascriptInterface public String getAppVersion(){return "1.1.0";}
+        @JavascriptInterface public String getDeviceId(){String id=Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);return id==null?"":id;}
+        @JavascriptInterface public String getDeviceLabel(){return (Build.MANUFACTURER+" "+Build.MODEL).trim();}
+        @JavascriptInterface public int getOfflineQueueCount(){return ProviderDutyService.offlineQueueCount(MainActivity.this);}
+        @JavascriptInterface public void queueTripAction(String kind,int id,String action,String pin){ProviderDutyService.enqueueAction(MainActivity.this,kind,id,action,pin);runOnUiThread(()->Toast.makeText(MainActivity.this,"Saved offline. Will sync when connection returns.",Toast.LENGTH_SHORT).show());}
         @JavascriptInterface public String getPlatform(){return "android-provider";}
     }
 
