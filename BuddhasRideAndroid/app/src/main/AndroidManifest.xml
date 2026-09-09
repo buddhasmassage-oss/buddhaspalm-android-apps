@@ -39,7 +39,7 @@
         </provider>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".StableMainActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
             android:exported="true"
             android:launchMode="singleTask"
