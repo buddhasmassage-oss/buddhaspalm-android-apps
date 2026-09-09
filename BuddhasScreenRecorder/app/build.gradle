@@ -20,8 +20,8 @@ android {
 }
 
 // Exact Buddha PNG supplied for the APK icon. The repository stores it as Base64 text
-// so GitHub connector writes remain text-safe; this task recreates the original PNG
-// before Android resource processing.
+// so GitHub connector writes remain text-safe. Before Android packages the resource,
+// re-encode the bitmap as a clean PNG so embedded metadata cannot break launcher/overlay decoding.
 def buddhasLogoBase64 = file('icon-assets/app_logo.png.b64')
 def buddhasLogoOutput = file('src/main/res/drawable/app_logo.png')
 
@@ -37,7 +37,14 @@ tasks.register('prepareBuddhasAppLogo') {
                 data[4] != 0x0d || data[5] != 0x0a || data[6] != 0x1a || data[7] != 0x0a) {
             throw new GradleException('Decoded Buddha logo is not a valid PNG')
         }
-        buddhasLogoOutput.bytes = data
+
+        def image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data))
+        if (image == null) {
+            throw new GradleException('Buddha logo could not be decoded as an image')
+        }
+        if (!javax.imageio.ImageIO.write(image, 'png', buddhasLogoOutput)) {
+            throw new GradleException('Buddha logo could not be re-encoded as PNG')
+        }
     }
 }
 
