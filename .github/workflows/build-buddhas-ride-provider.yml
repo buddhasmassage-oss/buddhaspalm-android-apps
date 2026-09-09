@@ -1,0 +1,52 @@
+name: Build Buddhas Ride Provider APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ buddhas-ride-provider-app ]
+    paths:
+      - 'BuddhasRideProviderAndroid/**'
+      - '.github/workflows/build-buddhas-ride-provider.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-buddhas-ride-provider:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BuddhasRideProviderAndroid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Verify separate Buddhas Ride Provider project
+        run: |
+          grep -q "applicationId 'com.buddhaspinas.buddhasride.provider'" app/build.gradle
+          grep -q "versionName '1.0.0'" app/build.gradle
+          grep -q 'https://rider.buddhaspinas.com/provider/' app/src/main/res/values/strings.xml
+          grep -q 'ProviderDutyService' app/src/main/AndroidManifest.xml
+          grep -q 'provider-live-jobs.php' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
+          grep -q 'BuddhasRideProviderAndroid' app/src/main/java/com/buddhaspinas/buddhasride/provider/MainActivity.java
+          grep -q 'Notification.CATEGORY_MESSAGE' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
+          ! grep -R -n 'metro.buddhaspinas.com' app/src/main
+          ! grep -R -n 'com.buddhaspalm.provider' app/src/main
+          test ! -f app/google-services.json
+      - name: Rebuild exact Buddhas Ride logo
+        run: gradle prepareBrandLogo --stacktrace
+      - name: Build installable provider APK
+        run: gradle assembleDebug --stacktrace
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride Provider v1.0.0.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Buddhas-Ride-Provider-v1.0.0-APK
+          path: "BuddhasRideProviderAndroid/Buddhas Ride Provider v1.0.0.apk"
+          if-no-files-found: error

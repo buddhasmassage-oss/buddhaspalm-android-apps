@@ -1,0 +1,40 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.buddhaspinas.buddhasride.provider'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.buddhaspinas.buddhasride.provider'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.register('prepareBrandLogo') {
+    doLast {
+        def parts=file('src/main/logo_parts').listFiles().findAll { it.name.startsWith('logo.part') }.sort { a,b -> a.name <=> b.name }
+        if(parts.size()!=9) throw new GradleException("Expected 9 Buddhas Ride logo parts, found ${parts.size()}")
+        def encoded=parts.collect { it.getText('UTF-8').trim() }.join('')
+        def out=file('src/main/res/drawable-nodpi/buddhas_ride_logo.png')
+        out.parentFile.mkdirs();out.bytes=java.util.Base64.getDecoder().decode(encoded)
+        if(out.length()<15000) throw new GradleException("Generated provider logo is incomplete: ${out.length()} bytes")
+    }
+}
+tasks.named('preBuild').configure { dependsOn tasks.named('prepareBrandLogo') }
