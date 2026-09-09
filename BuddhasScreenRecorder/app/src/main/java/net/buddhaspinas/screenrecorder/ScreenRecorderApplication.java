@@ -59,9 +59,9 @@ public class ScreenRecorderApplication extends Application {
         if (second instanceof WebView) {
             WebView web = (WebView) second;
             String ua = web.getSettings().getUserAgentString();
-            if (ua != null && ua.contains("BuddhasScreenRecorder/1.4.1")) {
+            if (ua != null && ua.contains("BuddhasScreenRecorder/")) {
                 web.getSettings().setUserAgentString(
-                        ua.replace("BuddhasScreenRecorder/1.4.1", "BuddhasScreenRecorder/1.4.2"));
+                        ua.replaceAll("BuddhasScreenRecorder/[0-9.]+", "BuddhasScreenRecorder/1.4.3"));
             }
         }
     }
