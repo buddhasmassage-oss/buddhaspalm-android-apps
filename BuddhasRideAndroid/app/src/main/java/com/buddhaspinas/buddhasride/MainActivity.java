@@ -40,6 +40,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
+import com.google.firebase.messaging.FirebaseMessaging;
+
+import org.json.JSONObject;
+
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -89,8 +93,10 @@ public class MainActivity extends AppCompatActivity {
         splashOverlay = findViewById(R.id.splashOverlay);
         configureWebView();
         requestNotificationPermissionIfNeeded();
-        Uri launchUri = getIntent() != null ? getIntent().getData() : null;
-        String startUrl = launchUri != null && HOST.equalsIgnoreCase(launchUri.getHost()) ? launchUri.toString() : HOME_URL;
+        Intent launchIntent = getIntent();
+        Uri launchUri = launchIntent != null ? launchIntent.getData() : null;
+        String pushUrl = launchIntent != null ? launchIntent.getStringExtra("url") : null;
+        String startUrl = validRideUrl(pushUrl) ? pushUrl : (launchUri != null && HOST.equalsIgnoreCase(launchUri.getHost()) ? launchUri.toString() : HOME_URL);
         webView.loadUrl(startUrl);
     }
 
@@ -122,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasRideAndroid/1.0.0");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasRideAndroid/1.0.2");
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
         cm.setAcceptThirdPartyCookies(webView, true);
@@ -140,10 +146,9 @@ public class MainActivity extends AppCompatActivity {
             splashOverlay.animate().alpha(0f).setDuration(260).withEndAction(() -> splashOverlay.setVisibility(View.GONE)).start();
             CookieManager.getInstance().flush();
             injectNativeBridgeHelpers();
+            requestCurrentFcmToken();
         }
-        @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-            if (request.isForMainFrame()) splashOverlay.setVisibility(View.GONE);
-        }
+        @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) { if (request.isForMainFrame()) splashOverlay.setVisibility(View.GONE); }
         @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
             if (request.isForMainFrame() && errorResponse.getStatusCode() >= 500) Toast.makeText(MainActivity.this, "Buddhas Ride server is temporarily unavailable.", Toast.LENGTH_LONG).show();
         }
@@ -233,6 +238,27 @@ public class MainActivity extends AppCompatActivity {
         webView.evaluateJavascript(js, null);
     }
 
+    private boolean validRideUrl(String url) {
+        if (url == null || url.trim().isEmpty()) return false;
+        try { Uri u = Uri.parse(url); return "https".equalsIgnoreCase(u.getScheme()) && HOST.equalsIgnoreCase(u.getHost()); }
+        catch (Exception e) { return false; }
+    }
+
+    private void requestCurrentFcmToken() {
+        FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
+            if (!task.isSuccessful() || task.getResult() == null || task.getResult().isEmpty()) return;
+            dispatchFcmTokenToWeb(task.getResult());
+        });
+    }
+
+    private void dispatchFcmTokenToWeb(String token) {
+        if (webView == null || token == null || token.isEmpty()) return;
+        runOnUiThread(() -> {
+            String js = "window.dispatchEvent(new CustomEvent('br:fcm-token',{detail:{token:" + JSONObject.quote(token) + ",platform:'android',appVersion:'1.0.2'}}));";
+            webView.evaluateJavascript(js, null);
+        });
+    }
+
     private void openExternal(Uri uri) {
         try {
             Intent i = "intent".equalsIgnoreCase(uri.getScheme()) ? Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME) : new Intent(Intent.ACTION_VIEW, uri);
@@ -253,7 +279,8 @@ public class MainActivity extends AppCompatActivity {
         }
         @JavascriptInterface public void openExternal(String url) { if (url != null) activity.runOnUiThread(() -> activity.openExternal(Uri.parse(url))); }
         @JavascriptInterface public String getPlatform() { return "android"; }
-        @JavascriptInterface public String getAppVersion() { return "1.0.0"; }
+        @JavascriptInterface public String getAppVersion() { return "1.0.2"; }
+        @JavascriptInterface public void requestFcmToken() { activity.requestCurrentFcmToken(); }
     }
 
     private void requestNotificationPermissionIfNeeded() {
@@ -272,7 +299,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent); setIntent(intent); Uri uri = intent.getData(); if (uri != null && HOST.equalsIgnoreCase(uri.getHost())) webView.loadUrl(uri.toString());
+        super.onNewIntent(intent); setIntent(intent);
+        String pushUrl = intent.getStringExtra("url");
+        if (validRideUrl(pushUrl)) { webView.loadUrl(pushUrl); return; }
+        Uri uri = intent.getData(); if (uri != null && HOST.equalsIgnoreCase(uri.getHost())) webView.loadUrl(uri.toString());
     }
     @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
     @Override protected void onResume() { super.onResume(); if (webView != null) webView.onResume(); }
