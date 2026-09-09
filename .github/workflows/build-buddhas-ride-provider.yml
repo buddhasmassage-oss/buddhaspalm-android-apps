@@ -27,15 +27,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Verify separate Buddhas Ride Provider project
+      - name: Verify separate Buddhas Ride Provider v1.1.0
         run: |
           grep -q "applicationId 'com.buddhaspinas.buddhasride.provider'" app/build.gradle
-          grep -q "versionName '1.0.0'" app/build.gradle
+          grep -q "versionName '1.1.0'" app/build.gradle
+          grep -q "versionCode 2" app/build.gradle
           grep -q 'https://rider.buddhaspinas.com/provider/' app/src/main/res/values/strings.xml
-          grep -q 'ProviderDutyService' app/src/main/AndroidManifest.xml
           grep -q 'provider-live-jobs.php' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
-          grep -q 'BuddhasRideProviderAndroid' app/src/main/java/com/buddhaspinas/buddhasride/provider/MainActivity.java
-          grep -q 'Notification.CATEGORY_MESSAGE' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
+          grep -q 'provider-action.php' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
+          grep -q 'ProviderDutyService.enqueueAction' app/src/main/java/com/buddhaspinas/buddhasride/provider/MainActivity.java
+          grep -q 'api/provider-device.php' app/src/main/java/com/buddhaspinas/buddhasride/provider/MainActivity.java
+          grep -q 'Next Ride Available' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
+          grep -q 'Connection restored' app/src/main/java/com/buddhaspinas/buddhasride/provider/ProviderDutyService.java
           ! grep -R -n 'metro.buddhaspinas.com' app/src/main
           ! grep -R -n 'com.buddhaspalm.provider' app/src/main
           test ! -f app/google-services.json
@@ -44,9 +47,9 @@ jobs:
       - name: Build installable provider APK
         run: gradle assembleDebug --stacktrace
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride Provider v1.0.0.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride Provider v1.1.0 Advanced.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Ride-Provider-v1.0.0-APK
-          path: "BuddhasRideProviderAndroid/Buddhas Ride Provider v1.0.0.apk"
+          name: Buddhas-Ride-Provider-v1.1.0-Advanced-APK
+          path: "BuddhasRideProviderAndroid/Buddhas Ride Provider v1.1.0 Advanced.apk"
           if-no-files-found: error
