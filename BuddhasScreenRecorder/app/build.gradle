@@ -10,11 +10,28 @@ android {
         applicationId 'net.buddhaspinas.screenrecorder'
         minSdk 26
         targetSdk 35
-        versionCode 15
-        versionName '1.4.1'
+        versionCode 16
+        versionName '1.4.2'
     }
 
     buildTypes {
         release { minifyEnabled false }
     }
 }
+
+// Exact Buddha PNG supplied for the APK icon. The repository stores it as Base64 text
+// so GitHub connector writes remain text-safe; this task recreates the original PNG
+// before Android resource processing.
+def buddhasLogoBase64 = file('icon-assets/app_logo.png.b64')
+def buddhasLogoOutput = file('src/main/res/drawable/app_logo.png')
+
+tasks.register('prepareBuddhasAppLogo') {
+    inputs.file(buddhasLogoBase64)
+    outputs.file(buddhasLogoOutput)
+    doLast {
+        buddhasLogoOutput.parentFile.mkdirs()
+        buddhasLogoOutput.bytes = buddhasLogoBase64.text.trim().decodeBase64()
+    }
+}
+
+tasks.named('preBuild').configure { dependsOn('prepareBuddhasAppLogo') }
