@@ -30,7 +30,14 @@ tasks.register('prepareBuddhasAppLogo') {
     outputs.file(buddhasLogoOutput)
     doLast {
         buddhasLogoOutput.parentFile.mkdirs()
-        buddhasLogoOutput.bytes = buddhasLogoBase64.text.trim().decodeBase64()
+        String clean = buddhasLogoBase64.getText('UTF-8').replaceAll('[^A-Za-z0-9+/=]', '')
+        byte[] data = clean.decodeBase64()
+        if (data.length < 8 ||
+                (data[0] & 0xff) != 0x89 || data[1] != 0x50 || data[2] != 0x4e || data[3] != 0x47 ||
+                data[4] != 0x0d || data[5] != 0x0a || data[6] != 0x1a || data[7] != 0x0a) {
+            throw new GradleException('Decoded Buddha logo is not a valid PNG')
+        }
+        buddhasLogoOutput.bytes = data
     }
 }
 
