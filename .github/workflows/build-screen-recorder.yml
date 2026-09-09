@@ -3,7 +3,7 @@ name: Build Buddhas Screen Recorder APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main, screen-recorder-v1-4-0-exact-edit, screen-recorder-v1-4-2-ui-icon, screen-recorder-v1-4-3-floating-fix-logo ]
+    branches: [ main, screen-recorder-v1-4-0-exact-edit, screen-recorder-v1-4-2-ui-icon, screen-recorder-v1-4-3-floating-fix-logo, screen-recorder-v1-4-4-full-floating-logo ]
     paths:
       - 'BuddhasScreenRecorder/**'
       - '.github/workflows/build-screen-recorder.yml'
@@ -30,8 +30,8 @@ jobs:
       - name: Build Screen Recorder APK
         run: gradle assembleDebug
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk 'Buddhas Screen Recorder v1.4.3.apk'
+        run: cp app/build/outputs/apk/debug/app-debug.apk 'Buddhas Screen Recorder v1.4.4.apk'
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Screen-Recorder-v1.4.3
-          path: 'BuddhasScreenRecorder/Buddhas Screen Recorder v1.4.3.apk'
+          name: Buddhas-Screen-Recorder-v1.4.4
+          path: 'BuddhasScreenRecorder/Buddhas Screen Recorder v1.4.4.apk'
