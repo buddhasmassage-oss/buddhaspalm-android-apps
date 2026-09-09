@@ -30,5 +30,6 @@ android {
 dependencies {
     implementation 'androidx.core:core:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.activity:activity:1.10.0'
     implementation 'com.onesignal:OneSignal:[5.6.1, 5.9.99]'
 }
