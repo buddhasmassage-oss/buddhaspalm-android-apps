@@ -29,14 +29,20 @@ jobs:
           gradle-version: '8.10.2'
       - name: Rebuild exact Buddhas Ride logo
         run: gradle prepareBrandLogo --stacktrace
-      - name: Verify Buddhas Ride v1.0.4 in-app build
+      - name: Verify Buddhas Ride v1.0.5 PWA display fix
         run: |
           grep -q "applicationId 'com.buddhaspinas.buddhasride'" app/build.gradle
-          grep -q "versionName '1.0.4'" app/build.gradle
+          grep -q "versionName '1.0.5'" app/build.gradle
+          grep -q "versionCode 6" app/build.gradle
           grep -q "id 'com.google.gms.google-services'" app/build.gradle
           grep -q 'com.buddhaspinas.buddhasride' app/google-services.json
           grep -q 'StableMainActivity' app/src/main/AndroidManifest.xml
-          grep -q 'BuddhasRideAndroid/1.0.4' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
+          grep -q 'BuddhasRideAndroid/1.0.5' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
+          grep -q 'setTextZoom(100)' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
+          grep -q 'setInitialScale(100)' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
+          grep -q 'applySafeAreaInsets' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
+          grep -q 'WindowInsets.Type.statusBars' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
+          grep -q 'text-size-adjust' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
           grep -q 'FirebaseMessagingService' app/src/main/java/com/buddhaspinas/buddhasride/BuddhasRideFirebaseMessagingService.java
           grep -q 'StableMainActivity.class' app/src/main/java/com/buddhaspinas/buddhasride/BuddhasRideFirebaseMessagingService.java
           ! grep -q 'Opening Buddhas Ride in your browser' app/src/main/java/com/buddhaspinas/buddhasride/StableMainActivity.java
@@ -57,9 +63,9 @@ jobs:
       - name: Build installable debug APK
         run: gradle assembleDebug --stacktrace
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride v1.0.4 In-App Fixed.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Ride v1.0.5 PWA Display Fixed.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Ride-v1.0.4-In-App-Fixed-APK
-          path: "BuddhasRideAndroid/Buddhas Ride v1.0.4 In-App Fixed.apk"
+          name: Buddhas-Ride-v1.0.5-PWA-Display-Fixed-APK
+          path: "BuddhasRideAndroid/Buddhas Ride v1.0.5 PWA Display Fixed.apk"
           if-no-files-found: error
