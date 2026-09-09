@@ -10,7 +10,7 @@
         <item name="android:colorAccent">@color/buddhas_blue</item>
         <item name="android:windowSoftInputMode">adjustResize</item>
         <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/buddhas_blue</item>
-        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@mipmap/ic_launcher</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@drawable/buddhas_ride_splash_icon</item>
         <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="31">@color/buddhas_blue</item>
     </style>
 </resources>
