@@ -1,10 +1,13 @@
-# Buddhas Ride Provider Android v1.1.0
+# Buddhas Ride Provider Android v1.2.0
 
 Separate Android provider app for **https://rider.buddhaspinas.com/provider/** only.
 
 - Package: `com.buddhaspinas.buddhasride.provider`
 - Does not use or modify `metro.buddhaspinas.com`.
 - Foreground Online receiver checks live Buddhas Ride jobs every ~4 seconds.
+- Receives nearby **Moto, Car, Taxi, Parcel and Food Delivery** requests from the Buddhas Ride provider live endpoint.
+- Ride/Car/Parcel and Food requests use separate high-priority Android notification channels, so one type no longer blocks notification of the other.
+- Food alerts open `provider/food-orders.php`, where the provider can accept and update the delivery workflow.
 - Supports Smart Next-Ride Queue notifications.
 - Keeps GPS updates running while Online.
 - Offline-resilient trip actions: On the Way / Arrived / Start / Complete are queued locally if the network fails and synchronized later.
