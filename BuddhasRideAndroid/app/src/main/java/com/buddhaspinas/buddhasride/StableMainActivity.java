@@ -15,6 +15,7 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
@@ -85,6 +86,7 @@ public class StableMainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         configureBars();
+        applySafeAreaInsets();
 
         webView = findViewById(R.id.webView);
         splashOverlay = findViewById(R.id.splashOverlay);
@@ -110,13 +112,32 @@ public class StableMainActivity extends AppCompatActivity {
         w.setStatusBarColor(ContextCompat.getColor(this, R.color.buddhas_blue));
         w.setNavigationBarColor(Color.WHITE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            w.setDecorFitsSystemWindows(true);
+            // Android 15+ enforces edge-to-edge for target SDK 35. We handle the
+            // system-bar insets ourselves so the web app never touches the camera,
+            // status icons, gesture area, or top edge of the display.
+            w.setDecorFitsSystemWindows(false);
             WindowInsetsController c = w.getInsetsController();
             if (c != null) {
                 c.setSystemBarsAppearance(WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
                         WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
             }
         }
+    }
+
+    private void applySafeAreaInsets() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return;
+        final View root = findViewById(R.id.root);
+        if (root == null) return;
+
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            android.graphics.Insets bars = insets.getInsets(
+                    WindowInsets.Type.statusBars() |
+                    WindowInsets.Type.navigationBars() |
+                    WindowInsets.Type.displayCutout());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return insets;
+        });
+        root.requestApplyInsets();
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
@@ -133,10 +154,17 @@ public class StableMainActivity extends AppCompatActivity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
+
+        // Match the responsive PWA viewport instead of letting Android WebView
+        // auto-enlarge text or choose its own overview scale.
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
+        s.setTextZoom(100);
+        s.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+        webView.setInitialScale(100);
+
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString() + " BuddhasRideAndroid/1.0.4");
+        s.setUserAgentString(s.getUserAgentString() + " BuddhasRideAndroid/1.0.5");
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -162,6 +190,7 @@ public class StableMainActivity extends AppCompatActivity {
                         .withEndAction(() -> splashOverlay.setVisibility(View.GONE)).start();
             }
             CookieManager.getInstance().flush();
+            injectDisplayNormalization();
             injectNativeHelpers();
             requestCurrentFcmToken();
         }
@@ -271,6 +300,17 @@ public class StableMainActivity extends AppCompatActivity {
         } catch (Throwable ignored) { return false; }
     }
 
+    private void injectDisplayNormalization() {
+        if (webView == null) return;
+        String js = "(function(){try{" +
+                "var h=document.documentElement;if(h){h.style.setProperty('-webkit-text-size-adjust','100%','important');h.style.setProperty('text-size-adjust','100%','important');}" +
+                "var b=document.body;if(b){b.style.setProperty('-webkit-text-size-adjust','100%','important');b.style.setProperty('text-size-adjust','100%','important');}" +
+                "var m=document.querySelector('meta[name=viewport]');" +
+                "if(!m){m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no';document.head&&document.head.appendChild(m);}" +
+                "}catch(e){}})();";
+        try { webView.evaluateJavascript(js, null); } catch (Throwable ignored) { }
+    }
+
     private void injectNativeHelpers() {
         if (webView == null) return;
         String js = "javascript:(function(){window.BuddhasRideNative=true;if(!navigator.share&&window.BuddhasRideAndroid){navigator.share=function(d){BuddhasRideAndroid.share((d&&d.title)||'',(d&&d.text)||'',(d&&d.url)||location.href);return Promise.resolve();};}})();";
@@ -282,7 +322,7 @@ public class StableMainActivity extends AppCompatActivity {
             FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
                 if (!task.isSuccessful() || task.getResult() == null || task.getResult().isEmpty() || webView == null) return;
                 String js = "window.dispatchEvent(new CustomEvent('br:fcm-token',{detail:{token:"
-                        + JSONObject.quote(task.getResult()) + ",platform:'android',appVersion:'1.0.4'}}));";
+                        + JSONObject.quote(task.getResult()) + ",platform:'android',appVersion:'1.0.5'}}));";
                 runOnUiThread(() -> {
                     try { webView.evaluateJavascript(js, null); } catch (Throwable ignored) { }
                 });
@@ -330,7 +370,7 @@ public class StableMainActivity extends AppCompatActivity {
             });
         }
         @JavascriptInterface public String getPlatform() { return "android"; }
-        @JavascriptInterface public String getAppVersion() { return "1.0.4"; }
+        @JavascriptInterface public String getAppVersion() { return "1.0.5"; }
         @JavascriptInterface public void requestFcmToken() { requestCurrentFcmToken(); }
     }
 
