@@ -39,20 +39,23 @@ public class BuddhasRideFirebaseMessagingService extends FirebaseMessagingServic
             if (body == null || body.isEmpty()) body = remoteMessage.getNotification().getBody();
         }
         if (title == null || title.isEmpty()) title = "Buddhas Ride";
-        if (body == null) body = "You have a new Buddhas Ride update.";
+        if (body == null || body.isEmpty()) body = "You have a new Buddhas Ride update.";
         showNotification(title, body, data.get("url"));
     }
 
     private void showNotification(String title, String body, String url) {
         ensureChannel();
-        Intent intent = new Intent(this, MainActivity.class);
+        Intent intent = new Intent(this, StableMainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (url != null && url.startsWith("https://rider.buddhaspinas.com/")) {
             intent.putExtra("url", url);
             intent.setData(Uri.parse(url));
-        } else intent.setData(Uri.parse(HOME_URL));
+        } else {
+            intent.setData(Uri.parse(HOME_URL));
+        }
         int requestCode = (int)(System.currentTimeMillis() & 0x7fffffff);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, requestCode, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_onesignal_default)
                 .setContentTitle(title)
@@ -62,7 +65,9 @@ public class BuddhasRideFirebaseMessagingService extends FirebaseMessagingServic
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent)
                 .setVibrate(new long[]{0,180,120,180});
-        if (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) NotificationManagerCompat.from(this).notify(requestCode, builder.build());
+        if (Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            NotificationManagerCompat.from(this).notify(requestCode, builder.build());
+        }
     }
 
     private void ensureChannel() {
