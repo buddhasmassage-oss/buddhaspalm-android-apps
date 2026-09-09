@@ -1,0 +1,37 @@
+name: Build Buddhas Screen Recorder APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'BuddhasScreenRecorder/**'
+      - '.github/workflows/build-screen-recorder.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-screen-recorder:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BuddhasScreenRecorder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build Screen Recorder APK
+        run: gradle assembleDebug
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk 'Buddhas Screen Recorder v1.4.0.apk'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Buddhas-Screen-Recorder-v1.4.0
+          path: 'BuddhasScreenRecorder/Buddhas Screen Recorder v1.4.0.apk'
