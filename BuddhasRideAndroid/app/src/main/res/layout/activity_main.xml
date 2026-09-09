@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+    <WebView android:id="@+id/webView" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/white" />
+    <LinearLayout android:id="@+id/splashOverlay" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/splash_gradient" android:gravity="center" android:orientation="vertical" android:padding="28dp">
+        <ImageView android:layout_width="154dp" android:layout_height="154dp" android:contentDescription="@string/app_name" android:src="@mipmap/ic_launcher" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:text="Buddhas Ride" android:textColor="@color/white" android:textSize="30sp" android:textStyle="bold" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:gravity="center" android:text="@string/loading_message" android:textColor="#E8F1FF" android:textSize="14sp" />
+        <ProgressBar style="?android:attr/progressBarStyleSmall" android:layout_width="34dp" android:layout_height="34dp" android:layout_marginTop="28dp" android:indeterminateTint="@color/white" />
+    </LinearLayout>
+</FrameLayout>
