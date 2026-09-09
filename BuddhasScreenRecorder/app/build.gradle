@@ -10,8 +10,8 @@ android {
         applicationId 'net.buddhaspinas.screenrecorder'
         minSdk 26
         targetSdk 35
-        versionCode 17
-        versionName '1.4.3'
+        versionCode 18
+        versionName '1.4.4'
     }
 
     buildTypes {
@@ -19,16 +19,16 @@ android {
     }
 }
 
-// Clean Buddha artwork is stored as small text-safe WebP Base64 parts.
-// Reassemble before Android resource processing so launchers and the floating overlay
-// use the exact user-supplied artwork without malformed PNG metadata.
+// Exact 512x512 Buddha artwork supplied by the user.
+// Stored as text-safe lossless WebP Base64 parts in GitHub, then recreated before
+// Android resource processing. drawable-nodpi prevents density resampling.
 def iconParts = [
         file('icon-assets/app_logo.webp.b64.part1'),
         file('icon-assets/app_logo.webp.b64.part2'),
         file('icon-assets/app_logo.webp.b64.part3'),
         file('icon-assets/app_logo.webp.b64.part4')
 ]
-def buddhasLogoOutput = file('src/main/res/drawable/app_logo.webp')
+def buddhasLogoOutput = file('src/main/res/drawable-nodpi/app_logo.webp')
 
 tasks.register('prepareBuddhasAppLogo') {
     inputs.files(iconParts)
@@ -38,10 +38,10 @@ tasks.register('prepareBuddhasAppLogo') {
         String encoded = iconParts.collect { it.getText('UTF-8').trim() }.join('')
                 .replaceAll('[^A-Za-z0-9+/=]', '')
         byte[] data = encoded.decodeBase64()
-        if (data.length < 16 ||
+        if (data.length != 12372 ||
                 data[0] != (byte)'R' || data[1] != (byte)'I' || data[2] != (byte)'F' || data[3] != (byte)'F' ||
                 data[8] != (byte)'W' || data[9] != (byte)'E' || data[10] != (byte)'B' || data[11] != (byte)'P') {
-            throw new GradleException('Decoded Buddha logo is not a valid WebP image')
+            throw new GradleException('Decoded Buddha logo is not the expected valid WebP image')
         }
         buddhasLogoOutput.bytes = data
     }
