@@ -3,7 +3,6 @@ package com.buddhaspinas.buddhasride.provider;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
@@ -87,7 +86,7 @@ public class MainActivity extends Activity {
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        s.setUserAgentString(s.getUserAgentString()+" BuddhasRideProviderAndroid/1.1.0");
+        s.setUserAgentString(s.getUserAgentString()+" BuddhasRideProviderAndroid/1.2.0");
         CookieManager cm=CookieManager.getInstance();cm.setAcceptCookie(true);try{cm.setAcceptThirdPartyCookies(webView,true);}catch(Throwable ignored){}
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         webView.addJavascriptInterface(new ProviderBridge(),"BuddhasRideProviderAndroid");
@@ -139,7 +138,7 @@ public class MainActivity extends Activity {
     private void registerNativeDevice(){
         final String cookie=CookieManager.getInstance().getCookie(HOME_URL);if(cookie==null||cookie.trim().isEmpty())return;
         final String deviceId=Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);if(deviceId==null||deviceId.isEmpty())return;
-        new Thread(()->{java.net.HttpURLConnection c=null;try{java.net.URL u=new java.net.URL("https://rider.buddhaspinas.com/api/provider-device.php");c=(java.net.HttpURLConnection)u.openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(8000);c.setRequestProperty("Cookie",cookie);c.setRequestProperty("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");String body="device_id="+java.net.URLEncoder.encode(deviceId,"UTF-8")+"&device_label="+java.net.URLEncoder.encode((Build.MANUFACTURER+" "+Build.MODEL).trim(),"UTF-8")+"&platform=android-provider&app_version=1.1.0";byte[] bytes=body.getBytes(java.nio.charset.StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(java.io.OutputStream os=c.getOutputStream()){os.write(bytes);}c.getResponseCode();}catch(Exception ignored){}finally{if(c!=null)c.disconnect();}}).start();
+        new Thread(()->{java.net.HttpURLConnection c=null;try{java.net.URL u=new java.net.URL("https://rider.buddhaspinas.com/api/provider-device.php");c=(java.net.HttpURLConnection)u.openConnection();c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(8000);c.setReadTimeout(8000);c.setRequestProperty("Cookie",cookie);c.setRequestProperty("Content-Type","application/x-www-form-urlencoded;charset=UTF-8");String body="device_id="+java.net.URLEncoder.encode(deviceId,"UTF-8")+"&device_label="+java.net.URLEncoder.encode((Build.MANUFACTURER+" "+Build.MODEL).trim(),"UTF-8")+"&platform=android-provider&app_version=1.2.0";byte[] bytes=body.getBytes(java.nio.charset.StandardCharsets.UTF_8);c.setFixedLengthStreamingMode(bytes.length);try(java.io.OutputStream os=c.getOutputStream()){os.write(bytes);}c.getResponseCode();}catch(Exception ignored){}finally{if(c!=null)c.disconnect();}}).start();
     }
 
     private void startDutyService(){
@@ -152,7 +151,7 @@ public class MainActivity extends Activity {
     public class ProviderBridge{
         @JavascriptInterface public void setDuty(boolean active){runOnUiThread(()->{if(active)startDutyService();else stopDutyService();});}
         @JavascriptInterface public void notifyJob(String title,String message,String url){runOnUiThread(()->showLocalJobNotification(title,message,url));}
-        @JavascriptInterface public String getAppVersion(){return "1.1.0";}
+        @JavascriptInterface public String getAppVersion(){return "1.2.0";}
         @JavascriptInterface public String getDeviceId(){String id=Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);return id==null?"":id;}
         @JavascriptInterface public String getDeviceLabel(){return (Build.MANUFACTURER+" "+Build.MODEL).trim();}
         @JavascriptInterface public int getOfflineQueueCount(){return ProviderDutyService.offlineQueueCount(MainActivity.this);}
