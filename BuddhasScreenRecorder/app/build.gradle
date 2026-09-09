@@ -19,32 +19,31 @@ android {
     }
 }
 
-// Exact Buddha PNG supplied for the APK icon. The repository stores it as Base64 text
-// so GitHub connector writes remain text-safe. Before Android packages the resource,
-// re-encode the bitmap as a clean PNG so embedded metadata cannot break launcher/overlay decoding.
-def buddhasLogoBase64 = file('icon-assets/app_logo.png.b64')
-def buddhasLogoOutput = file('src/main/res/drawable/app_logo.png')
+// Clean Buddha artwork is stored as small text-safe WebP Base64 parts.
+// Reassemble before Android resource processing so launchers and the floating overlay
+// use the exact user-supplied artwork without malformed PNG metadata.
+def iconParts = [
+        file('icon-assets/app_logo.webp.b64.part1'),
+        file('icon-assets/app_logo.webp.b64.part2'),
+        file('icon-assets/app_logo.webp.b64.part3'),
+        file('icon-assets/app_logo.webp.b64.part4')
+]
+def buddhasLogoOutput = file('src/main/res/drawable/app_logo.webp')
 
 tasks.register('prepareBuddhasAppLogo') {
-    inputs.file(buddhasLogoBase64)
+    inputs.files(iconParts)
     outputs.file(buddhasLogoOutput)
     doLast {
         buddhasLogoOutput.parentFile.mkdirs()
-        String clean = buddhasLogoBase64.getText('UTF-8').replaceAll('[^A-Za-z0-9+/=]', '')
-        byte[] data = clean.decodeBase64()
-        if (data.length < 8 ||
-                (data[0] & 0xff) != 0x89 || data[1] != 0x50 || data[2] != 0x4e || data[3] != 0x47 ||
-                data[4] != 0x0d || data[5] != 0x0a || data[6] != 0x1a || data[7] != 0x0a) {
-            throw new GradleException('Decoded Buddha logo is not a valid PNG')
+        String encoded = iconParts.collect { it.getText('UTF-8').trim() }.join('')
+                .replaceAll('[^A-Za-z0-9+/=]', '')
+        byte[] data = encoded.decodeBase64()
+        if (data.length < 16 ||
+                data[0] != (byte)'R' || data[1] != (byte)'I' || data[2] != (byte)'F' || data[3] != (byte)'F' ||
+                data[8] != (byte)'W' || data[9] != (byte)'E' || data[10] != (byte)'B' || data[11] != (byte)'P') {
+            throw new GradleException('Decoded Buddha logo is not a valid WebP image')
         }
-
-        def image = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data))
-        if (image == null) {
-            throw new GradleException('Buddha logo could not be decoded as an image')
-        }
-        if (!javax.imageio.ImageIO.write(image, 'png', buddhasLogoOutput)) {
-            throw new GradleException('Buddha logo could not be re-encoded as PNG')
-        }
+        buddhasLogoOutput.bytes = data
     }
 }
 
