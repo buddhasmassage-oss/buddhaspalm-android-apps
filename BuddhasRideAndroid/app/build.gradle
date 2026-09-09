@@ -28,6 +28,29 @@ android {
     }
 }
 
+tasks.register('prepareBrandLogo') {
+    doLast {
+        def partsDir = file('src/main/logo_parts')
+        def parts = partsDir.listFiles()
+                .findAll { it.name.startsWith('logo.part') }
+                .sort { a, b -> a.name <=> b.name }
+        if (parts.size() != 9) {
+            throw new GradleException("Expected 9 Buddhas Ride logo data parts, found ${parts.size()}")
+        }
+        def encoded = parts.collect { it.getText('UTF-8').trim() }.join('')
+        def output = file('src/main/res/drawable-nodpi/buddhas_ride_logo.png')
+        output.parentFile.mkdirs()
+        output.bytes = java.util.Base64.getDecoder().decode(encoded)
+        if (output.length() < 15000) {
+            throw new GradleException("Generated Buddhas Ride logo is incomplete: ${output.length()} bytes")
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('prepareBrandLogo')
+}
+
 dependencies {
     implementation 'androidx.core:core:1.15.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
