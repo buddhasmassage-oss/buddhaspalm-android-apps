@@ -33,7 +33,7 @@ jobs:
           sed -i 's#https://metro\.buddhaspinas\.com/admin/#https://staff.buddhaspalm.shop/admin.php#g' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
           sed -i 's#metro\.buddhaspinas\.com#staff.buddhaspalm.shop#g' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
           sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">Buddhas Staff Admin</string>#' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
-          sed -i "s/versionCode [0-9][0-9]*/versionCode 1/; s/versionName '[^']*'/versionName '1.0.0'/" BuddhasStaffNewAdmin/app/build.gradle
+          sed -i "s/versionCode [0-9][0-9]*/versionCode 2/; s/versionName '[^']*'/versionName '1.0.1'/" BuddhasStaffNewAdmin/app/build.gradle
 
           # NEW Staff/Therapist package and destination.
           grep -RIl 'com.buddhaspalm.provider' BuddhasStaffNewTherapist | xargs -r sed -i 's/com\.buddhaspalm\.provider/com.buddhaspalm.staff/g'
@@ -44,16 +44,110 @@ jobs:
           sed -i 's#https://metro\.buddhaspinas\.com/provider#https://staff.buddhaspalm.shop/therapist.php#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml || true
           sed -i 's#metro\.buddhaspinas\.com#staff.buddhaspalm.shop#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml
           sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">Buddhas Staff</string>#' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml
-          sed -i "s/versionCode [0-9][0-9]*/versionCode 1/; s/versionName '[^']*'/versionName '1.0.0'/" BuddhasStaffNewTherapist/app/build.gradle
+          sed -i "s/versionCode [0-9][0-9]*/versionCode 2/; s/versionName '[^']*'/versionName '1.0.1'/" BuddhasStaffNewTherapist/app/build.gradle
 
           # Replace any remaining hard-coded Metro URLs in the NEW copies only.
           grep -RIl 'metro.buddhaspinas.com' BuddhasStaffNewAdmin | xargs -r sed -i 's#https://metro\.buddhaspinas\.com[^"'"'"' ]*#https://staff.buddhaspalm.shop/admin.php#g'
           grep -RIl 'metro.buddhaspinas.com' BuddhasStaffNewTherapist | xargs -r sed -i 's#https://metro\.buddhaspinas\.com[^"'"'"' ]*#https://staff.buddhaspalm.shop/therapist.php#g'
 
+      - name: Match APK layout to PWA and Android safe areas
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          projects = [Path('BuddhasStaffNewAdmin'), Path('BuddhasStaffNewTherapist')]
+          for project in projects:
+              java = next((project / 'app/src/main/java').rglob('MainActivity.java'))
+              text = java.read_text()
+
+              # Android 15/API 35 edge-to-edge safe-area support.
+              if 'androidx.core.graphics.Insets' not in text:
+                  text = text.replace(
+                      'import android.widget.RelativeLayout;\n',
+                      'import android.widget.RelativeLayout;\n\n'
+                      'import androidx.core.graphics.Insets;\n'
+                      'import androidx.core.view.ViewCompat;\n'
+                      'import androidx.core.view.WindowCompat;\n'
+                      'import androidx.core.view.WindowInsetsCompat;\n'
+                      'import androidx.core.view.WindowInsetsControllerCompat;\n'
+                  )
+
+              text = text.replace(
+                  '        getWindow().setStatusBarColor(Color.rgb(75, 23, 106));\n'
+                  '        getWindow().setNavigationBarColor(Color.rgb(50, 16, 69));\n',
+                  '        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);\n'
+                  '        getWindow().setStatusBarColor(Color.WHITE);\n'
+                  '        getWindow().setNavigationBarColor(Color.WHITE);\n'
+                  '        WindowInsetsControllerCompat bars = new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());\n'
+                  '        bars.setAppearanceLightStatusBars(true);\n'
+                  '        bars.setAppearanceLightNavigationBars(true);\n'
+              )
+
+              # Remove the extra native Admin footer so the website/PWA is the only UI frame.
+              if project.name == 'BuddhasStaffNewAdmin':
+                  old = '''        LinearLayout trackingBar = buildTrackingBar();
+        trackingBar.setId(View.generateViewId());
+
+        RelativeLayout.LayoutParams barParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(52));
+        barParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        root.addView(trackingBar, barParams);
+
+        RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
+        webParams.addRule(RelativeLayout.ABOVE, trackingBar.getId());
+        RelativeLayout.LayoutParams progParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(3));
+        progParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        progParams.addRule(RelativeLayout.ABOVE, trackingBar.getId());
+        root.addView(webView, webParams);
+        root.addView(progress, progParams);
+        setContentView(root);
+'''
+                  new = '''        RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
+        RelativeLayout.LayoutParams progParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(3));
+        progParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+        root.addView(webView, webParams);
+        root.addView(progress, progParams);
+        setContentView(root);
+'''
+                  text = text.replace(old, new)
+
+              marker = '        setContentView(root);\n\n        configureWebView();'
+              safe = '''        setContentView(root);
+
+        // Keep the live PWA inside the real status/navigation/cutout area.
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets safeInsets = insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, safeInsets.bottom);
+            return insets;
+        });
+        ViewCompat.requestApplyInsets(root);
+
+        configureWebView();'''
+              text = text.replace(marker, safe)
+
+              # Stop WebView from re-scaling responsive frames/text differently from the PWA.
+              settings_marker = '        s.setMediaPlaybackRequiresUserGesture(false);\n'
+              settings = '''        s.setMediaPlaybackRequiresUserGesture(false);
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(false);
+        s.setTextZoom(100);
+        s.setDefaultFontSize(16);
+        s.setBuiltInZoomControls(false);
+        s.setDisplayZoomControls(false);
+        s.setSupportZoom(false);
+'''
+              if 's.setTextZoom(100);' not in text:
+                  text = text.replace(settings_marker, settings)
+
+              java.write_text(text)
+              print('Patched', java)
+          PY
+
           echo '--- Admin verify ---'
-          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name" BuddhasStaffNewAdmin/app BuddhasStaffNewAdmin/*.gradle | head -80
+          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name\|versionName" BuddhasStaffNewAdmin/app BuddhasStaffNewAdmin/*.gradle | head -100
           echo '--- Staff verify ---'
-          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name" BuddhasStaffNewTherapist/app BuddhasStaffNewTherapist/*.gradle | head -80
+          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name\|versionName" BuddhasStaffNewTherapist/app BuddhasStaffNewTherapist/*.gradle | head -100
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -82,27 +176,27 @@ jobs:
 
       - name: Prepare separately named APKs
         run: |
-          cp BuddhasStaffNewAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.0.apk
-          cp BuddhasStaffNewTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.0.apk
-          sha256sum Buddhas-Staff-Admin-v1.0.0.apk > Buddhas-Staff-Admin-v1.0.0.apk.sha256
-          sha256sum Buddhas-Staff-Therapist-v1.0.0.apk > Buddhas-Staff-Therapist-v1.0.0.apk.sha256
+          cp BuddhasStaffNewAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.1.apk
+          cp BuddhasStaffNewTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.1.apk
+          sha256sum Buddhas-Staff-Admin-v1.0.1.apk > Buddhas-Staff-Admin-v1.0.1.apk.sha256
+          sha256sum Buddhas-Staff-Therapist-v1.0.1.apk > Buddhas-Staff-Therapist-v1.0.1.apk.sha256
 
       - name: Upload NEW Admin APK
         uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Staff-Admin-v1.0.0-NEW
+          name: Buddhas-Staff-Admin-v1.0.1-PWA-FIX
           path: |
-            Buddhas-Staff-Admin-v1.0.0.apk
-            Buddhas-Staff-Admin-v1.0.0.apk.sha256
+            Buddhas-Staff-Admin-v1.0.1.apk
+            Buddhas-Staff-Admin-v1.0.1.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload NEW Staff APK
         uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Staff-Therapist-v1.0.0-NEW
+          name: Buddhas-Staff-Therapist-v1.0.1-PWA-FIX
           path: |
-            Buddhas-Staff-Therapist-v1.0.0.apk
-            Buddhas-Staff-Therapist-v1.0.0.apk.sha256
+            Buddhas-Staff-Therapist-v1.0.1.apk
+            Buddhas-Staff-Therapist-v1.0.1.apk.sha256
           if-no-files-found: error
           retention-days: 30
