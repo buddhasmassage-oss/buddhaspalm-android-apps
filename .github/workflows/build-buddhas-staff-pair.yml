@@ -9,6 +9,7 @@ on:
       - '.github/scripts/patch_buddhas_staff_pwa.py'
       - '.github/scripts/patch_buddhas_staff_fcm.py'
       - '.github/scripts/patch_buddhas_staff_notifications_v104.py'
+      - '.github/scripts/patch_buddhas_staff_booking_alarm_v105.py'
 
 permissions:
   contents: read
@@ -36,7 +37,7 @@ jobs:
           sed -i 's#https://metro\.buddhaspinas\.com/admin/#https://staff.buddhaspalm.shop/admin.php#g' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
           sed -i 's#metro\.buddhaspinas\.com#staff.buddhaspalm.shop#g' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
           sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">Buddhas Staff Admin</string>#' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
-          sed -i "s/versionCode [0-9][0-9]*/versionCode 5/; s/versionName '[^']*'/versionName '1.0.4'/" BuddhasStaffNewAdmin/app/build.gradle
+          sed -i "s/versionCode [0-9][0-9]*/versionCode 6/; s/versionName '[^']*'/versionName '1.0.5'/" BuddhasStaffNewAdmin/app/build.gradle
 
           # NEW Staff/Therapist package and destination.
           grep -RIl 'com.buddhaspalm.provider' BuddhasStaffNewTherapist | xargs -r sed -i 's/com\.buddhaspalm\.provider/com.buddhaspalm.staff/g'
@@ -47,7 +48,7 @@ jobs:
           sed -i 's#https://metro\.buddhaspinas\.com/provider#https://staff.buddhaspalm.shop/therapist.php#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml || true
           sed -i 's#metro\.buddhaspinas\.com#staff.buddhaspalm.shop#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml
           sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">Buddhas Staff</string>#' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml
-          sed -i "s/versionCode [0-9][0-9]*/versionCode 5/; s/versionName '[^']*'/versionName '1.0.4'/" BuddhasStaffNewTherapist/app/build.gradle
+          sed -i "s/versionCode [0-9][0-9]*/versionCode 6/; s/versionName '[^']*'/versionName '1.0.5'/" BuddhasStaffNewTherapist/app/build.gradle
 
           # Replace any remaining hard-coded Metro URLs in the NEW copies only.
           grep -RIl 'metro.buddhaspinas.com' BuddhasStaffNewAdmin | xargs -r sed -i 's#https://metro\.buddhaspinas\.com[^"'"'"' ]*#https://staff.buddhaspalm.shop/admin.php#g'
@@ -62,15 +63,20 @@ jobs:
       - name: Add Android notification permission and delivery fixes
         run: python3 .github/scripts/patch_buddhas_staff_notifications_v104.py
 
+      - name: Add continuous therapist new-booking alarm
+        run: python3 .github/scripts/patch_buddhas_staff_booking_alarm_v105.py
+
       - name: Verify isolated app values
         shell: bash
         run: |
           echo '--- Admin verify ---'
           grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name\|versionName\|firebase-messaging\|FirebaseDeviceInfoActivity\|POST_NOTIFICATIONS\|buddhas_staff_fcm\|bp-apk-map-avatar-fix\|OneSignalManager.initialize" BuddhasStaffNewAdmin/app BuddhasStaffNewAdmin/*.gradle | head -220
           echo '--- Staff verify ---'
-          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name\|versionName\|firebase-messaging\|FirebaseDeviceInfoActivity\|POST_NOTIFICATIONS\|buddhas_staff_fcm\|bp-apk-map-avatar-fix\|OneSignalManager.initialize" BuddhasStaffNewTherapist/app BuddhasStaffNewTherapist/*.gradle | head -220
+          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name\|versionName\|firebase-messaging\|FirebaseDeviceInfoActivity\|POST_NOTIFICATIONS\|buddhas_staff_fcm\|BookingAlarmService\|FOREGROUND_SERVICE_MEDIA_PLAYBACK\|bp-apk-map-avatar-fix\|OneSignalManager.initialize" BuddhasStaffNewTherapist/app BuddhasStaffNewTherapist/*.gradle | head -260
           grep -R 'android.permission.POST_NOTIFICATIONS' BuddhasStaffNewAdmin/app/src/main/AndroidManifest.xml
           grep -R 'android.permission.POST_NOTIFICATIONS' BuddhasStaffNewTherapist/app/src/main/AndroidManifest.xml
+          grep -R 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK' BuddhasStaffNewTherapist/app/src/main/AndroidManifest.xml
+          grep -R 'BookingAlarmService' BuddhasStaffNewTherapist/app/src/main
           grep -R 'buddhas_staff_fcm' BuddhasStaffNewAdmin/app/src/main BuddhasStaffNewTherapist/app/src/main
           ! grep -R "OneSignalManager.initialize(this);" BuddhasStaffNewAdmin/app/src/main/java
           ! grep -R "OneSignalManager.initialize(this);" BuddhasStaffNewTherapist/app/src/main/java
@@ -102,27 +108,27 @@ jobs:
 
       - name: Prepare separately named APKs
         run: |
-          cp BuddhasStaffNewAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.4.apk
-          cp BuddhasStaffNewTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.4.apk
-          sha256sum Buddhas-Staff-Admin-v1.0.4.apk > Buddhas-Staff-Admin-v1.0.4.apk.sha256
-          sha256sum Buddhas-Staff-Therapist-v1.0.4.apk > Buddhas-Staff-Therapist-v1.0.4.apk.sha256
+          cp BuddhasStaffNewAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.5.apk
+          cp BuddhasStaffNewTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.5.apk
+          sha256sum Buddhas-Staff-Admin-v1.0.5.apk > Buddhas-Staff-Admin-v1.0.5.apk.sha256
+          sha256sum Buddhas-Staff-Therapist-v1.0.5.apk > Buddhas-Staff-Therapist-v1.0.5.apk.sha256
 
       - name: Upload NEW Admin APK
         uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Staff-Admin-v1.0.4-NOTIFICATION-FIX
+          name: Buddhas-Staff-Admin-v1.0.5-BOOKING-ALARM
           path: |
-            Buddhas-Staff-Admin-v1.0.4.apk
-            Buddhas-Staff-Admin-v1.0.4.apk.sha256
+            Buddhas-Staff-Admin-v1.0.5.apk
+            Buddhas-Staff-Admin-v1.0.5.apk.sha256
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload NEW Staff APK
         uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Staff-Therapist-v1.0.4-NOTIFICATION-FIX
+          name: Buddhas-Staff-Therapist-v1.0.5-CONTINUOUS-BOOKING-ALARM
           path: |
-            Buddhas-Staff-Therapist-v1.0.4.apk
-            Buddhas-Staff-Therapist-v1.0.4.apk.sha256
+            Buddhas-Staff-Therapist-v1.0.5.apk
+            Buddhas-Staff-Therapist-v1.0.5.apk.sha256
           if-no-files-found: error
           retention-days: 30
