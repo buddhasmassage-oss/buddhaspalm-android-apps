@@ -1,0 +1,97 @@
+name: Build New Buddhas Staff Admin and Staff APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'BuddhasStaffAdmin-source-v1.0.0.zip'
+      - '.github/workflows/build-buddhas-staff-pair.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract brand-new Buddhas Staff Admin source
+        run: unzip -q BuddhasStaffAdmin-source-v1.0.0.zip
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build NEW Admin APK
+        working-directory: BuddhasStaffAdmin
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Create separate NEW Staff project from the new Staff Admin wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a BuddhasStaffAdmin BuddhasStaffTherapist
+
+          # This is a NEW package. It does not replace or modify any existing app.
+          grep -RIl 'com.buddhaspalm.staffadmin' BuddhasStaffTherapist | xargs -r sed -i 's/com\.buddhaspalm\.staffadmin/com.buddhaspalm.staff/g'
+
+          # Rename Java/Kotlin package directory when present.
+          while IFS= read -r -d '' d; do
+            parent="$(dirname "$d")"
+            if [ ! -e "$parent/staff" ]; then mv "$d" "$parent/staff"; fi
+          done < <(find BuddhasStaffTherapist -type d -name staffadmin -print0)
+
+          # Staff app opens the therapist portal, while Admin keeps admin.php.
+          grep -RIl 'https://staff.buddhaspalm.shop/admin.php' BuddhasStaffTherapist | xargs -r sed -i 's#https://staff\.buddhaspalm\.shop/admin\.php#https://staff.buddhaspalm.shop/therapist.php#g'
+          grep -RIl 'Buddhas Staff Admin' BuddhasStaffTherapist | xargs -r sed -i 's/Buddhas Staff Admin/Buddhas Staff/g'
+          grep -RIl 'Staff Admin' BuddhasStaffTherapist | xargs -r sed -i 's/Staff Admin/Staff/g'
+
+          echo '--- Staff applicationId / URL verification ---'
+          grep -R "applicationId\|namespace\|staff.buddhaspalm.shop" BuddhasStaffTherapist/app BuddhasStaffTherapist/*.gradle 2>/dev/null | head -100 || true
+
+      - name: Build NEW Staff APK
+        working-directory: BuddhasStaffTherapist
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Prepare separately named APKs
+        run: |
+          cp BuddhasStaffAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.0.apk
+          cp BuddhasStaffTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.0.apk
+          sha256sum Buddhas-Staff-Admin-v1.0.0.apk > Buddhas-Staff-Admin-v1.0.0.apk.sha256
+          sha256sum Buddhas-Staff-Therapist-v1.0.0.apk > Buddhas-Staff-Therapist-v1.0.0.apk.sha256
+
+      - name: Upload NEW Admin APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Buddhas-Staff-Admin-v1.0.0-NEW
+          path: |
+            Buddhas-Staff-Admin-v1.0.0.apk
+            Buddhas-Staff-Admin-v1.0.0.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload NEW Staff APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Buddhas-Staff-Therapist-v1.0.0-NEW
+          path: |
+            Buddhas-Staff-Therapist-v1.0.0.apk
+            Buddhas-Staff-Therapist-v1.0.0.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
