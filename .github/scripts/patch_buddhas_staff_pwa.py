@@ -54,6 +54,17 @@ def patch_project(project_name: str, is_admin: bool) -> None:
         )
         text = text.replace(old, new)
 
+    # Both generated apps use dp() for native overlay sizing. The Admin base already
+    # has it; the Staff/Provider base does not, so add it only when missing.
+    if "private int dp(int value)" not in text:
+        marker = "    private void configureWebView() {"
+        helper = (
+            "    private int dp(int value) {\n"
+            "        return Math.round(value * getResources().getDisplayMetrics().density);\n"
+            "    }\n\n"
+        )
+        text = text.replace(marker, helper + marker, 1)
+
     marker = "        setContentView(root);\n\n        configureWebView();"
     safe = (
         "        setContentView(root);\n\n"
