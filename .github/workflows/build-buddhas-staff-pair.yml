@@ -5,7 +5,6 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'BuddhasStaffAdmin-source-v1.0.0.zip'
       - '.github/workflows/build-buddhas-staff-pair.yml'
 
 permissions:
@@ -18,8 +17,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract brand-new Buddhas Staff Admin source
-        run: unzip -q BuddhasStaffAdmin-source-v1.0.0.zip
+      - name: Create isolated NEW Admin and Staff source copies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Copy only. Existing APK projects remain unchanged.
+          cp -a BuddhasPalmAdmin BuddhasStaffNewAdmin
+          cp -a BuddhasPalmProvider BuddhasStaffNewTherapist
+
+          # NEW Admin package and destination.
+          grep -RIl 'com.buddhaspalm.admin' BuddhasStaffNewAdmin | xargs -r sed -i 's/com\.buddhaspalm\.admin/com.buddhaspalm.staffadmin/g'
+          if [ -d BuddhasStaffNewAdmin/app/src/main/java/com/buddhaspalm/admin ]; then
+            mv BuddhasStaffNewAdmin/app/src/main/java/com/buddhaspalm/admin BuddhasStaffNewAdmin/app/src/main/java/com/buddhaspalm/staffadmin
+          fi
+          sed -i 's#https://metro\.buddhaspinas\.com/admin/#https://staff.buddhaspalm.shop/admin.php#g' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
+          sed -i 's#metro\.buddhaspinas\.com#staff.buddhaspalm.shop#g' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
+          sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">Buddhas Staff Admin</string>#' BuddhasStaffNewAdmin/app/src/main/res/values/strings.xml
+          sed -i "s/versionCode [0-9][0-9]*/versionCode 1/; s/versionName '[^']*'/versionName '1.0.0'/" BuddhasStaffNewAdmin/app/build.gradle
+
+          # NEW Staff/Therapist package and destination.
+          grep -RIl 'com.buddhaspalm.provider' BuddhasStaffNewTherapist | xargs -r sed -i 's/com\.buddhaspalm\.provider/com.buddhaspalm.staff/g'
+          if [ -d BuddhasStaffNewTherapist/app/src/main/java/com/buddhaspalm/provider ]; then
+            mv BuddhasStaffNewTherapist/app/src/main/java/com/buddhaspalm/provider BuddhasStaffNewTherapist/app/src/main/java/com/buddhaspalm/staff
+          fi
+          sed -i 's#https://metro\.buddhaspinas\.com/provider/#https://staff.buddhaspalm.shop/therapist.php#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml || true
+          sed -i 's#https://metro\.buddhaspinas\.com/provider#https://staff.buddhaspalm.shop/therapist.php#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml || true
+          sed -i 's#metro\.buddhaspinas\.com#staff.buddhaspalm.shop#g' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml
+          sed -i 's#<string name="app_name">[^<]*</string>#<string name="app_name">Buddhas Staff</string>#' BuddhasStaffNewTherapist/app/src/main/res/values/strings.xml
+          sed -i "s/versionCode [0-9][0-9]*/versionCode 1/; s/versionName '[^']*'/versionName '1.0.0'/" BuddhasStaffNewTherapist/app/build.gradle
+
+          # Replace any remaining hard-coded Metro URLs in the NEW copies only.
+          grep -RIl 'metro.buddhaspinas.com' BuddhasStaffNewAdmin | xargs -r sed -i 's#https://metro\.buddhaspinas\.com[^"'"'"' ]*#https://staff.buddhaspalm.shop/admin.php#g'
+          grep -RIl 'metro.buddhaspinas.com' BuddhasStaffNewTherapist | xargs -r sed -i 's#https://metro\.buddhaspinas\.com[^"'"'"' ]*#https://staff.buddhaspalm.shop/therapist.php#g'
+
+          echo '--- Admin verify ---'
+          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name" BuddhasStaffNewAdmin/app BuddhasStaffNewAdmin/*.gradle | head -80
+          echo '--- Staff verify ---'
+          grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name" BuddhasStaffNewTherapist/app BuddhasStaffNewTherapist/*.gradle | head -80
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -39,40 +73,17 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build NEW Admin APK
-        working-directory: BuddhasStaffAdmin
+        working-directory: BuddhasStaffNewAdmin
         run: gradle --no-daemon clean assembleDebug
 
-      - name: Create separate NEW Staff project from the new Staff Admin wrapper
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -a BuddhasStaffAdmin BuddhasStaffTherapist
-
-          # This is a NEW package. It does not replace or modify any existing app.
-          grep -RIl 'com.buddhaspalm.staffadmin' BuddhasStaffTherapist | xargs -r sed -i 's/com\.buddhaspalm\.staffadmin/com.buddhaspalm.staff/g'
-
-          # Rename Java/Kotlin package directory when present.
-          while IFS= read -r -d '' d; do
-            parent="$(dirname "$d")"
-            if [ ! -e "$parent/staff" ]; then mv "$d" "$parent/staff"; fi
-          done < <(find BuddhasStaffTherapist -type d -name staffadmin -print0)
-
-          # Staff app opens the therapist portal, while Admin keeps admin.php.
-          grep -RIl 'https://staff.buddhaspalm.shop/admin.php' BuddhasStaffTherapist | xargs -r sed -i 's#https://staff\.buddhaspalm\.shop/admin\.php#https://staff.buddhaspalm.shop/therapist.php#g'
-          grep -RIl 'Buddhas Staff Admin' BuddhasStaffTherapist | xargs -r sed -i 's/Buddhas Staff Admin/Buddhas Staff/g'
-          grep -RIl 'Staff Admin' BuddhasStaffTherapist | xargs -r sed -i 's/Staff Admin/Staff/g'
-
-          echo '--- Staff applicationId / URL verification ---'
-          grep -R "applicationId\|namespace\|staff.buddhaspalm.shop" BuddhasStaffTherapist/app BuddhasStaffTherapist/*.gradle 2>/dev/null | head -100 || true
-
       - name: Build NEW Staff APK
-        working-directory: BuddhasStaffTherapist
+        working-directory: BuddhasStaffNewTherapist
         run: gradle --no-daemon clean assembleDebug
 
       - name: Prepare separately named APKs
         run: |
-          cp BuddhasStaffAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.0.apk
-          cp BuddhasStaffTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.0.apk
+          cp BuddhasStaffNewAdmin/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Admin-v1.0.0.apk
+          cp BuddhasStaffNewTherapist/app/build/outputs/apk/debug/app-debug.apk Buddhas-Staff-Therapist-v1.0.0.apk
           sha256sum Buddhas-Staff-Admin-v1.0.0.apk > Buddhas-Staff-Admin-v1.0.0.apk.sha256
           sha256sum Buddhas-Staff-Therapist-v1.0.0.apk > Buddhas-Staff-Therapist-v1.0.0.apk.sha256
 
