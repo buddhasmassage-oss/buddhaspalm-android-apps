@@ -6,6 +6,7 @@ on:
     branches: [ main ]
     paths:
       - '.github/workflows/build-buddhas-staff-pair.yml'
+      - '.github/scripts/patch_buddhas_staff_pwa.py'
 
 permissions:
   contents: read
@@ -51,99 +52,11 @@ jobs:
           grep -RIl 'metro.buddhaspinas.com' BuddhasStaffNewTherapist | xargs -r sed -i 's#https://metro\.buddhaspinas\.com[^"'"'"' ]*#https://staff.buddhaspalm.shop/therapist.php#g'
 
       - name: Match APK layout to PWA and Android safe areas
+        run: python3 .github/scripts/patch_buddhas_staff_pwa.py
+
+      - name: Verify isolated app values
         shell: bash
         run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          projects = [Path('BuddhasStaffNewAdmin'), Path('BuddhasStaffNewTherapist')]
-          for project in projects:
-              java = next((project / 'app/src/main/java').rglob('MainActivity.java'))
-              text = java.read_text()
-
-              # Android 15/API 35 edge-to-edge safe-area support.
-              if 'androidx.core.graphics.Insets' not in text:
-                  text = text.replace(
-                      'import android.widget.RelativeLayout;\n',
-                      'import android.widget.RelativeLayout;\n\n'
-                      'import androidx.core.graphics.Insets;\n'
-                      'import androidx.core.view.ViewCompat;\n'
-                      'import androidx.core.view.WindowCompat;\n'
-                      'import androidx.core.view.WindowInsetsCompat;\n'
-                      'import androidx.core.view.WindowInsetsControllerCompat;\n'
-                  )
-
-              text = text.replace(
-                  '        getWindow().setStatusBarColor(Color.rgb(75, 23, 106));\n'
-                  '        getWindow().setNavigationBarColor(Color.rgb(50, 16, 69));\n',
-                  '        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);\n'
-                  '        getWindow().setStatusBarColor(Color.WHITE);\n'
-                  '        getWindow().setNavigationBarColor(Color.WHITE);\n'
-                  '        WindowInsetsControllerCompat bars = new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());\n'
-                  '        bars.setAppearanceLightStatusBars(true);\n'
-                  '        bars.setAppearanceLightNavigationBars(true);\n'
-              )
-
-              # Remove the extra native Admin footer so the website/PWA is the only UI frame.
-              if project.name == 'BuddhasStaffNewAdmin':
-                  old = '''        LinearLayout trackingBar = buildTrackingBar();
-        trackingBar.setId(View.generateViewId());
-
-        RelativeLayout.LayoutParams barParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(52));
-        barParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        root.addView(trackingBar, barParams);
-
-        RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
-        webParams.addRule(RelativeLayout.ABOVE, trackingBar.getId());
-        RelativeLayout.LayoutParams progParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(3));
-        progParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-        progParams.addRule(RelativeLayout.ABOVE, trackingBar.getId());
-        root.addView(webView, webParams);
-        root.addView(progress, progParams);
-        setContentView(root);
-'''
-                  new = '''        RelativeLayout.LayoutParams webParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, RelativeLayout.LayoutParams.MATCH_PARENT);
-        RelativeLayout.LayoutParams progParams = new RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.MATCH_PARENT, dp(3));
-        progParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-        root.addView(webView, webParams);
-        root.addView(progress, progParams);
-        setContentView(root);
-'''
-                  text = text.replace(old, new)
-
-              marker = '        setContentView(root);\n\n        configureWebView();'
-              safe = '''        setContentView(root);
-
-        // Keep the live PWA inside the real status/navigation/cutout area.
-        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
-            Insets safeInsets = insets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, safeInsets.bottom);
-            return insets;
-        });
-        ViewCompat.requestApplyInsets(root);
-
-        configureWebView();'''
-              text = text.replace(marker, safe)
-
-              # Stop WebView from re-scaling responsive frames/text differently from the PWA.
-              settings_marker = '        s.setMediaPlaybackRequiresUserGesture(false);\n'
-              settings = '''        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUseWideViewPort(true);
-        s.setLoadWithOverviewMode(false);
-        s.setTextZoom(100);
-        s.setDefaultFontSize(16);
-        s.setBuiltInZoomControls(false);
-        s.setDisplayZoomControls(false);
-        s.setSupportZoom(false);
-'''
-              if 's.setTextZoom(100);' not in text:
-                  text = text.replace(settings_marker, settings)
-
-              java.write_text(text)
-              print('Patched', java)
-          PY
-
           echo '--- Admin verify ---'
           grep -R "applicationId\|namespace\|start_url\|allowed_host\|app_name\|versionName" BuddhasStaffNewAdmin/app BuddhasStaffNewAdmin/*.gradle | head -100
           echo '--- Staff verify ---'
