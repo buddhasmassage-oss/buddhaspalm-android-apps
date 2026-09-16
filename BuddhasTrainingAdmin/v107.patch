@@ -1,0 +1,148 @@
+--- app/src/main/java/net/buddhasprovider/admin/MainActivity.java
++++ app/src/main/java/net/buddhasprovider/admin/MainActivity.java
+@@ -72,6 +72,7 @@
+     private ValueCallback<Uri[]> fileCallback;
+     private SharedPreferences biometricPrefs;
+     private String fcmToken = "";
++    private boolean biometricAutoPrompted = false;
+ 
+     @Override protected void onCreate(Bundle savedInstanceState) {
+         super.onCreate(savedInstanceState);
+@@ -135,7 +136,7 @@
+         s.setAllowContentAccess(true);
+         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+         s.setMediaPlaybackRequiresUserGesture(false);
+-        s.setUserAgentString(s.getUserAgentString() + " BuddhasTrainingAdmin-Android/1.0.4 NativeFingerprint");
++        s.setUserAgentString(s.getUserAgentString() + " BuddhasTrainingAdmin-Android/1.0.7 NativeFingerprint");
+         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) s.setSafeBrowsingEnabled(true);
+ 
+         CookieManager.getInstance().setAcceptCookie(true);
+@@ -157,6 +158,11 @@
+                 CookieManager.getInstance().flush();
+                 registerCurrentToken();
+                 updateBiometricButton(url);
++                installNativeFingerprintPageBridge();
++                if (isAdminLoginPage(url) && isBiometricRegistered() && !biometricAutoPrompted) {
++                    biometricAutoPrompted = true;
++                    webView.postDelayed(() -> authenticateAndLogin(), 450);
++                }
+             }
+         });
+ 
+@@ -185,6 +191,13 @@
+         String url = webView.getUrl();
+         if (isBiometricRegistered() && isAdminLoginPage(url)) {
+             authenticateAndLogin();
++        } else if (!isBiometricRegistered() && isAdminLoginPage(url)) {
++            new AlertDialog.Builder(this)
++                    .setTitle("Set up fingerprint login")
++                    .setMessage("For security, first sign in once with your normal Admin username and password. After the dashboard opens, tap Register Fingerprint. Future logins will open the Android fingerprint prompt automatically.")
++                    .setPositiveButton("Sign In First", null)
++                    .setNegativeButton("Cancel", null)
++                    .show();
+         } else if (!isBiometricRegistered() && isLoggedInAdminPage(url)) {
+             registerFingerprint();
+         } else if (isBiometricRegistered() && isLoggedInAdminPage(url)) {
+@@ -222,6 +235,11 @@
+             biometricButton.setVisibility(View.VISIBLE);
+             return;
+         }
++        if (isAdminLoginPage(url) && !isBiometricRegistered()) {
++            biometricButton.setText("Set Up Fingerprint");
++            biometricButton.setVisibility(View.VISIBLE);
++            return;
++        }
+         if (isLoggedInAdminPage(url) && !isBiometricRegistered()) {
+             biometricButton.setText("Register Fingerprint");
+             biometricButton.setVisibility(View.VISIBLE);
+@@ -371,11 +389,11 @@
+         }
+         String deviceName = Build.MANUFACTURER + " " + Build.MODEL;
+         String js = "(async()=>{try{" +
+-                "let c=await fetch('/native-biometric-api.php?action=challenge',{credentials:'include',cache:'no-store'}).then(r=>r.json());" +
+-                "if(!c.ok){BuddhasNativeBio.onRegister(JSON.stringify(c));return;}" +
+-                "let r=await fetch('/native-biometric-api.php?action=register',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce:c.nonce,device_id:" + JSONObject.quote(deviceId) + ",device_name:" + JSONObject.quote(deviceName) + "})}).then(r=>r.json());" +
++                "async function api(url,opt){let r=await fetch(url,opt||{});let t=await r.text();let j;try{j=JSON.parse(t)}catch(e){let h=(t||'').trim().startsWith('<');throw new Error(h?'Fingerprint server API returned an HTML page. Upload native-biometric-api.php to the website root first.':'Fingerprint server API returned invalid JSON (HTTP '+r.status+').');}if(!r.ok||!j.ok)throw new Error(j.error||('Fingerprint API failed (HTTP '+r.status+').'));return j;}" +
++                "let c=await api('/native-biometric-api.php?action=challenge',{credentials:'include',cache:'no-store',headers:{'Accept':'application/json'}});" +
++                "let r=await api('/native-biometric-api.php?action=register',{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({nonce:c.nonce,device_id:" + JSONObject.quote(deviceId) + ",device_name:" + JSONObject.quote(deviceName) + "})});" +
+                 "BuddhasNativeBio.onRegister(JSON.stringify(r));" +
+-                "}catch(e){BuddhasNativeBio.onRegister(JSON.stringify({ok:false,error:String(e)}));}})();";
++                "}catch(e){BuddhasNativeBio.onRegister(JSON.stringify({ok:false,error:(e&&e.message)?e.message:String(e)}));}})();";
+         webView.evaluateJavascript(js, null);
+     }
+ 
+@@ -385,13 +403,25 @@
+             return;
+         }
+         String deviceId = biometricPrefs.getString("device_id", "");
+-        String js = "fetch('/native-biometric-api.php?action=login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:" + JSONObject.quote(deviceId) + ",token:" + JSONObject.quote(token) + "})})" +
+-                ".then(r=>r.json()).then(x=>BuddhasNativeBio.onLogin(JSON.stringify(x)))" +
+-                ".catch(e=>BuddhasNativeBio.onLogin(JSON.stringify({ok:false,error:String(e)})));";
++        String js = "(async()=>{try{" +
++                "let r=await fetch('/native-biometric-api.php?action=login',{method:'POST',credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({device_id:" + JSONObject.quote(deviceId) + ",token:" + JSONObject.quote(token) + "})});" +
++                "let t=await r.text();let j;try{j=JSON.parse(t)}catch(e){let h=(t||'').trim().startsWith('<');throw new Error(h?'Fingerprint server API returned an HTML page. Upload native-biometric-api.php to the website root first.':'Fingerprint login server returned invalid JSON.');}" +
++                "if(!r.ok||!j.ok)throw new Error(j.error||('Fingerprint login failed (HTTP '+r.status+').'));BuddhasNativeBio.onLogin(JSON.stringify(j));" +
++                "}catch(e){BuddhasNativeBio.onLogin(JSON.stringify({ok:false,error:(e&&e.message)?e.message:String(e)}));}})();";
+         if (webView.getUrl() == null || !isOwnSite(webView.getUrl())) webView.loadUrl(ADMIN_URL + "login.php");
+         webView.postDelayed(() -> webView.evaluateJavascript(js, null), 250);
+     }
+ 
++    private void installNativeFingerprintPageBridge() {
++        String js = "(()=>{try{" +
++                "const b=document.getElementById('adminRegisterBio');" +
++                "if(b&&!b.dataset.nativeBound){b.dataset.nativeBound='1';b.textContent='◉ Register Fingerprint in APK';b.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();BuddhasNativeBio.startRegistration();},true);}" +
++                "const n=document.getElementById('nativeRegisterBio');" +
++                "if(n&&!n.dataset.nativeBound){n.dataset.nativeBound='1';n.addEventListener('click',function(e){e.preventDefault();e.stopImmediatePropagation();BuddhasNativeBio.startRegistration();},true);}" +
++                "}catch(e){}})();";
++        webView.evaluateJavascript(js, null);
++    }
++
+     private SecretKey getOrCreateKey() throws Exception {
+         KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+         keyStore.load(null);
+@@ -434,19 +464,33 @@
+     }
+ 
+     public class NativeBiometricBridge {
++        @JavascriptInterface public void startRegistration() {
++            runOnUiThread(() -> registerFingerprint());
++        }
++
++        @JavascriptInterface public boolean isRegistered() {
++            return isBiometricRegistered();
++        }
++
+         @JavascriptInterface public void onRegister(String json) {
+             runOnUiThread(() -> {
+                 try {
+                     JSONObject response = new JSONObject(json);
+                     if (!response.optBoolean("ok")) {
+-                        toast(response.optString("error", "Fingerprint registration failed."));
++                        String error = response.optString("error", "Fingerprint registration failed.");
++                        toast(error);
++                        webView.evaluateJavascript("if(window.bpNativeFingerprintError){bpNativeFingerprintError(" + JSONObject.quote(error) + ");}", null);
+                         return;
+                     }
+                     encryptAndSaveToken(response.getString("token"));
+                     biometricButton.setText("Fingerprint Active");
+-                    toast("Fingerprint login is now registered on this Android device.");
++                    String message = response.optString("message", "Fingerprint login is now registered on this Android device.");
++                    toast(message);
++                    webView.evaluateJavascript("if(window.bpNativeFingerprintRegistered){bpNativeFingerprintRegistered(" + JSONObject.quote(message) + ");}", null);
+                 } catch (Exception e) {
+-                    toast("Could not securely save the fingerprint login credential.");
++                    String error = "Could not securely save the fingerprint login credential.";
++                    toast(error);
++                    webView.evaluateJavascript("if(window.bpNativeFingerprintError){bpNativeFingerprintError(" + JSONObject.quote(error) + ");}", null);
+                 }
+             });
+         }
+@@ -544,7 +588,7 @@
+                 con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                 con.setRequestProperty("Cookie", cookie);
+                 con.setRequestProperty("X-BP-FCM", "1");
+-                con.setRequestProperty("User-Agent", "BuddhasTrainingAdmin-Android/1.0.4 NativeFingerprint");
++                con.setRequestProperty("User-Agent", "BuddhasTrainingAdmin-Android/1.0.7 NativeFingerprint");
+                 String device = Build.MANUFACTURER + " " + Build.MODEL;
+                 String body = "token=" + enc(clean) + "&package_name=" + enc(context.getPackageName()) + "&device_name=" + enc(device) + "&platform=android";
+                 byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
