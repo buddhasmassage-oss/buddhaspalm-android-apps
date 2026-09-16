@@ -35,15 +35,31 @@ jobs:
         run: |
           mkdir -p app/src/main/res/drawable
           cp ../BuddhasTraining/app/src/main/res/drawable/buddhas_training_logo.png app/src/main/res/drawable/buddhas_training_logo.png
-      - name: Apply native fingerprint compile fixes
+      - name: Apply fingerprint login fixes
         run: |
-          sed -i 's/import android\.app\.BiometricPrompt;/import android.hardware.biometrics.BiometricPrompt;/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
-          sed -i 's/if (errorCode != BiometricPrompt\.BIOMETRIC_ERROR_NEGATIVE_BUTTON) {/if (true) {/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/net/buddhasprovider/admin/MainActivity.java')
+          s=p.read_text()
+          s=s.replace('import android.app.BiometricPrompt;','import android.hardware.biometrics.BiometricPrompt;')
+          s=s.replace('private String fcmToken = "";','private String fcmToken = "";\n    private boolean biometricAutoPrompted = false;')
+          s=s.replace('''            @Override public void onPageFinished(WebView view, String url) {\n                super.onPageFinished(view, url);\n                CookieManager.getInstance().flush();\n                registerCurrentToken();\n                updateBiometricButton(url);\n            }''','''            @Override public void onPageFinished(WebView view, String url) {\n                super.onPageFinished(view, url);\n                CookieManager.getInstance().flush();\n                registerCurrentToken();\n                updateBiometricButton(url);\n                if (isAdminLoginPage(url) && isBiometricRegistered() && !biometricAutoPrompted) {\n                    biometricAutoPrompted = true;\n                    webView.postDelayed(() -> authenticateAndLogin(), 450);\n                }\n            }''')
+          s=s.replace('''        if (isBiometricRegistered() && isAdminLoginPage(url)) {\n            authenticateAndLogin();\n        } else if (!isBiometricRegistered() && isLoggedInAdminPage(url)) {\n            registerFingerprint();''','''        if (isBiometricRegistered() && isAdminLoginPage(url)) {\n            authenticateAndLogin();\n        } else if (!isBiometricRegistered() && isAdminLoginPage(url)) {\n            new AlertDialog.Builder(this)\n                    .setTitle("Set up fingerprint login")\n                    .setMessage("For security, first sign in once with your normal Admin username and password. After the dashboard opens, tap Register Fingerprint. Future logins will open the Android fingerprint prompt automatically.")\n                    .setPositiveButton("Sign In First", null)\n                    .setNegativeButton("Cancel", null)\n                    .show();\n        } else if (!isBiometricRegistered() && isLoggedInAdminPage(url)) {\n            registerFingerprint();''')
+          s=s.replace('''        if (isAdminLoginPage(url) && isBiometricRegistered()) {\n            biometricButton.setText("Fingerprint Login");\n            biometricButton.setVisibility(View.VISIBLE);\n            return;\n        }''','''        if (isAdminLoginPage(url) && isBiometricRegistered()) {\n            biometricButton.setText("Fingerprint Login");\n            biometricButton.setVisibility(View.VISIBLE);\n            return;\n        }\n        if (isAdminLoginPage(url) && !isBiometricRegistered()) {\n            biometricButton.setText("Set Up Fingerprint");\n            biometricButton.setVisibility(View.VISIBLE);\n            return;\n        }''')
+          s=s.replace('if (errorCode != BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON) {','if (true) {')
+          s=s.replace('BuddhasTrainingAdmin-Android/1.0.4 NativeFingerprint','BuddhasTrainingAdmin-Android/1.0.5 NativeFingerprint')
+          s=s.replace('BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.BIOMETRIC_WEAK','android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_STRONG | android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK')
+          p.write_text(s)
+
+          g=Path('app/build.gradle')
+          t=g.read_text().replace('versionCode 4','versionCode 5').replace("versionName '1.0.4'","versionName '1.0.5'")
+          g.write_text(t)
+          PY
       - name: Build Admin APK
         run: gradle assembleDebug --stacktrace
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.4 Native Fingerprint.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.5 Fingerprint Login Fix.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Training-Admin-Native-Fingerprint-v1.0.4
-          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.4 Native Fingerprint.apk"
+          name: Buddhas-Training-Admin-Fingerprint-Login-Fix-v1.0.5
+          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.5 Fingerprint Login Fix.apk"
