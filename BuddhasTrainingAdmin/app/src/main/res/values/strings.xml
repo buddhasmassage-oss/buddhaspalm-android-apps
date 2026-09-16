@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Buddhas Training Admin</string>
+    <string name="start_url">https://buddhasprovider.net/admin/</string>
+    <string name="allowed_host">buddhasprovider.net</string>
+    <string name="fcm_register_url">https://buddhasprovider.net/api/fcm-register.php</string>
+    <string name="notification_channel_name">Buddhas Training Admin Notifications</string>
+    <string name="notification_channel_description">Admin alerts for registrations, enrollments, orders, chat and course activity.</string>
+</resources>
