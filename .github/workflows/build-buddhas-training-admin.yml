@@ -13,81 +13,161 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Create isolated Admin source from student template
+
+      - name: Create isolated Admin source v1.0.2
         run: |
+          set -euo pipefail
+          rm -rf BuddhasTrainingAdminBuild
           cp -a BuddhasTraining BuddhasTrainingAdminBuild
+
           python3 - <<'PY'
           from pathlib import Path
           import json
-          root=Path('BuddhasTrainingAdminBuild')
-          def rep(rel, pairs):
-              p=root/rel
-              s=p.read_text()
-              for a,b in pairs:
-                  s=s.replace(a,b)
-              p.write_text(s)
-          rep('app/build.gradle', [
-              ("namespace 'net.buddhasprovider.app'", "namespace 'net.buddhasprovider.admin'"),
-              ("applicationId 'net.buddhasprovider.app'", "applicationId 'net.buddhasprovider.admin'"),
-              ("versionName '1.0.0'", "versionName '1.0.1'")
-          ])
-          rep('settings.gradle', [("rootProject.name = 'BuddhasTraining'", "rootProject.name = 'BuddhasTrainingAdmin'")])
-          java_dir=root/'app/src/main/java/net/buddhasprovider/app'
-          for name in ['MainActivity.java','BuddhasFirebaseMessagingService.java']:
-              p=java_dir/name
-              s=p.read_text().replace('package net.buddhasprovider.app;', 'package net.buddhasprovider.admin;')
-              s=s.replace('BuddhasTraining-Android/1.0.0','BuddhasTrainingAdmin-Android/1.0.1')
-              s=s.replace('BuddhasTraining-FCM-Register','BuddhasTrainingAdmin-FCM-Register')
-              s=s.replace('buddhas_training_updates','buddhas_training_admin_updates')
-              p.write_text(s)
-          strings=root/'app/src/main/res/values/strings.xml'
-          s=strings.read_text()
-          s=s.replace('<string name="app_name">Buddhas Training</string>', '<string name="app_name">Buddhas Training Admin</string>')
-          s=s.replace('<string name="start_url">https://buddhasprovider.net/</string>', '<string name="start_url">https://buddhasprovider.net/admin/</string>')
-          s=s.replace('Buddhas Training Notifications','Buddhas Training Admin Notifications')
-          s=s.replace('Enrollment, course, class, payment and Admin updates.','Admin alerts for registrations, enrollments, orders, chat and course activity.')
-          strings.write_text(s)
-          manifest=root/'app/src/main/AndroidManifest.xml'
-          s=manifest.read_text().replace('buddhas_training_updates','buddhas_training_admin_updates')
-          s=s.replace('android:host="buddhasprovider.net" />','android:host="buddhasprovider.net"\n                    android:pathPrefix="/admin" />')
-          manifest.write_text(s)
-          gs=root/'app/google-services.json'
-          data=json.loads(gs.read_text())
-          found=False
-          for client in data.get('client',[]):
-              info=client.get('client_info',{})
-              android=info.get('android_client_info',{})
-              if android.get('package_name')=='net.buddhasprovider.app':
-                  android['package_name']='net.buddhasprovider.admin'
-                  info['mobilesdk_app_id']='1:1020836481565:android:7006b7c9b77f1ad9bed4f4'
-                  found=True
+
+          root = Path('BuddhasTrainingAdminBuild')
+
+          build = root / 'app/build.gradle'
+          s = build.read_text(encoding='utf-8')
+          s = s.replace("namespace 'net.buddhasprovider.app'", "namespace 'net.buddhasprovider.admin'")
+          s = s.replace("applicationId 'net.buddhasprovider.app'", "applicationId 'net.buddhasprovider.admin'")
+          s = s.replace('versionCode 1', 'versionCode 2')
+          s = s.replace("versionName '1.0.0'", "versionName '1.0.2'")
+          if 'androidx.core:core:' not in s:
+              s = s.replace('dependencies {', "dependencies {\n    implementation 'androidx.core:core:1.15.0'")
+          build.write_text(s, encoding='utf-8')
+
+          settings = root / 'settings.gradle'
+          s = settings.read_text(encoding='utf-8').replace(
+              "rootProject.name = 'BuddhasTraining'",
+              "rootProject.name = 'BuddhasTrainingAdmin'"
+          )
+          settings.write_text(s, encoding='utf-8')
+
+          strings = root / 'app/src/main/res/values/strings.xml'
+          s = strings.read_text(encoding='utf-8')
+          s = s.replace('<string name="app_name">Buddhas Training</string>', '<string name="app_name">Buddhas Training Admin</string>')
+          s = s.replace('<string name="start_url">https://buddhasprovider.net/</string>', '<string name="start_url">https://buddhasprovider.net/admin/</string>')
+          s = s.replace('Buddhas Training Notifications', 'Buddhas Training Admin Notifications')
+          s = s.replace('Enrollment, course, class, payment and Admin updates.', 'Admin alerts for registrations, enrollments, orders, chat and course activity.')
+          strings.write_text(s, encoding='utf-8')
+
+          manifest = root / 'app/src/main/AndroidManifest.xml'
+          s = manifest.read_text(encoding='utf-8')
+          s = s.replace('android:icon="@drawable/buddhas_training_logo"', 'android:icon="@mipmap/ic_launcher"')
+          s = s.replace('android:roundIcon="@drawable/buddhas_training_logo"', 'android:roundIcon="@mipmap/ic_launcher_round"')
+          s = s.replace('buddhas_training_updates', 'buddhas_training_admin_updates')
+          if 'android:pathPrefix="/admin"' not in s:
+              s = s.replace(
+                  'android:host="buddhasprovider.net" />',
+                  'android:host="buddhasprovider.net"\n                    android:pathPrefix="/admin" />'
+              )
+          manifest.write_text(s, encoding='utf-8')
+
+          service = root / 'app/src/main/java/net/buddhasprovider/app/BuddhasFirebaseMessagingService.java'
+          s = service.read_text(encoding='utf-8')
+          s = s.replace('package net.buddhasprovider.app;', 'package net.buddhasprovider.admin;')
+          s = s.replace('buddhas_training_updates', 'buddhas_training_admin_updates')
+          service.write_text(s, encoding='utf-8')
+
+          gs = root / 'app/google-services.json'
+          data = json.loads(gs.read_text(encoding='utf-8'))
+          found = False
+          for client in data.get('client', []):
+              info = client.get('client_info', {})
+              android = info.get('android_client_info', {})
+              if android.get('package_name') in ('net.buddhasprovider.app', 'net.buddhasprovider.admin'):
+                  android['package_name'] = 'net.buddhasprovider.admin'
+                  info['mobilesdk_app_id'] = '1:1020836481565:android:7006b7c9b77f1ad9bed4f4'
+                  found = True
           if not found:
-              raise SystemExit('Student Firebase client not found in template')
-          gs.write_text(json.dumps(data,indent=2))
+              raise SystemExit('Firebase Android client not found in template')
+          gs.write_text(json.dumps(data, indent=2), encoding='utf-8')
           PY
+
+          cp BuddhasTrainingAdminAssets/MainActivity.java \
+             BuddhasTrainingAdminBuild/app/src/main/java/net/buddhasprovider/app/MainActivity.java
+
+      - name: Install exact Buddhas Training logo as launcher icon
+        run: |
+          set -euo pipefail
+          LOGO="BuddhasTrainingAdminBuild/app/src/main/res/drawable/buddhas_training_admin_logo.png"
+          cat BuddhasTrainingAdminAssets/logo12.part1 \
+              BuddhasTrainingAdminAssets/logo12.part2 \
+              BuddhasTrainingAdminAssets/logo12.part3 \
+              BuddhasTrainingAdminAssets/logo12.part4 \
+              BuddhasTrainingAdminAssets/logo12.part5 | base64 -d > "$LOGO"
+
+          echo "b16aba28e495d7342a428ff6f128fc9ae56540a0e4a2702e3521476edc778fb2  $LOGO" | sha256sum -c -
+
+          RES="BuddhasTrainingAdminBuild/app/src/main/res"
+          for D in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "$RES/mipmap-$D"
+            cp "$LOGO" "$RES/mipmap-$D/ic_launcher.png"
+            cp "$LOGO" "$RES/mipmap-$D/ic_launcher_round.png"
+          done
+
+          cat > "$RES/values/admin_icon_colors.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="admin_icon_bg">#062B54</color>
+          </resources>
+          XML
+
+          cat > "$RES/drawable/admin_icon_foreground.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <inset xmlns:android="http://schemas.android.com/apk/res/android"
+              android:drawable="@drawable/buddhas_training_admin_logo"
+              android:inset="8dp" />
+          XML
+
+          mkdir -p "$RES/mipmap-anydpi-v26"
+          cat > "$RES/mipmap-anydpi-v26/ic_launcher.xml" <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/admin_icon_bg" />
+              <foreground android:drawable="@drawable/admin_icon_foreground" />
+          </adaptive-icon>
+          XML
+          cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+
+          file "$LOGO"
+
       - name: Install Android SDK 35
         run: |
           SDKMANAGER="/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
       - name: Build clean Admin APK with Gradle
         working-directory: BuddhasTrainingAdminBuild
         run: gradle clean assembleDebug --no-daemon
-      - name: Verify APK
+
+      - name: Verify Admin APK package icon and signature
         run: |
+          set -euo pipefail
           APK="BuddhasTrainingAdminBuild/app/build/outputs/apk/debug/app-debug.apk"
-          /usr/local/lib/android/sdk/build-tools/35.0.0/apksigner verify --verbose --print-certs "$APK"
-          /usr/local/lib/android/sdk/build-tools/35.0.0/aapt dump badging "$APK" | head -20
-          cp "$APK" "Buddhas Training Admin v1.0.1.apk"
+          TOOLS="/usr/local/lib/android/sdk/build-tools/35.0.0"
+
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$TOOLS/aapt" dump badging "$APK" | tee /tmp/admin-badging.txt | head -30
+
+          grep -q "package: name='net.buddhasprovider.admin'" /tmp/admin-badging.txt
+          grep -q "application-label:'Buddhas Training Admin'" /tmp/admin-badging.txt
+
+          unzip -l "$APK" | grep -E 'buddhas_training_admin_logo|ic_launcher' | head -30
+          cp "$APK" "Buddhas Training Admin v1.0.2.apk"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Training-Admin-v1.0.1-APK
-          path: "Buddhas Training Admin v1.0.1.apk"
+          name: Buddhas-Training-Admin-v1.0.2-APK
+          path: "Buddhas Training Admin v1.0.2.apk"
           retention-days: 30
