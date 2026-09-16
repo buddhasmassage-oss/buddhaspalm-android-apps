@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Buddhas Training</string>
+    <string name="start_url">https://buddhasprovider.net/</string>
+    <string name="allowed_host">buddhasprovider.net</string>
+    <string name="fcm_register_url">https://buddhasprovider.net/api/fcm-register.php</string>
+    <string name="notification_channel_name">Buddhas Training Notifications</string>
+    <string name="notification_channel_description">Enrollment, course, class, payment and Admin updates.</string>
+</resources>
