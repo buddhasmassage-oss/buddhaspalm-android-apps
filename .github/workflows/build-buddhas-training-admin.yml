@@ -100,74 +100,8 @@ jobs:
 
           cp BuddhasTrainingAdminAssets/MainActivity.java \
              BuddhasTrainingAdminBuild/app/src/main/java/net/buddhasprovider/app/MainActivity.java
-
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('BuddhasTrainingAdminBuild/app/src/main/java/net/buddhasprovider/app/MainActivity.java')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace('import android.app.Activity;\n', 'import android.app.Activity;\nimport android.app.AlertDialog;\n')
-          s = s.replace('import android.os.Bundle;\n', 'import android.os.Bundle;\nimport android.provider.Settings;\n')
-          s = s.replace('BuddhasTrainingAdmin-Android/1.0.2', 'BuddhasTrainingAdmin-Android/1.0.3')
-          old = '''    private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFICATIONS);
-        }
-    }
-'''
-          new = '''    private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT < 33) return;
-        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return;
-
-        if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-            new AlertDialog.Builder(this)
-                    .setTitle("Enable Admin Notifications")
-                    .setMessage("Allow notification permission so Buddhas Training Admin can alert you about new registrations, course enrollments, orders, chat messages and other Admin events.")
-                    .setCancelable(false)
-                    .setPositiveButton("Allow Notifications", (dialog, which) ->
-                            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFICATIONS))
-                    .setNegativeButton("Not Now", null)
-                    .show();
-        } else {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFICATIONS);
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode != REQ_NOTIFICATIONS) return;
-        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-        if (granted) {
-            NotificationHelper.ensureChannel(this);
-            loadFcmToken();
-            return;
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("Admin Notifications Are Off")
-                .setMessage("Notifications are needed for Admin alerts. You can enable them anytime in Android notification settings.")
-                .setPositiveButton("Open Notification Settings", (dialog, which) -> openNotificationSettings())
-                .setNegativeButton("Later", null)
-                .show();
-    }
-
-    private void openNotificationSettings() {
-        try {
-            Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
-            startActivity(intent);
-        } catch (Exception ignored) {
-            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            intent.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        }
-    }
-'''
-          if old not in s:
-              raise SystemExit('Notification permission method not found')
-          s = s.replace(old, new)
-          p.write_text(s, encoding='utf-8')
-          PY
+          python3 BuddhasTrainingAdminAssets/patch_notification_permission.py \
+             BuddhasTrainingAdminBuild/app/src/main/java/net/buddhasprovider/app/MainActivity.java
 
       - name: Install exact Buddhas Training logo as launcher icon
         run: |
