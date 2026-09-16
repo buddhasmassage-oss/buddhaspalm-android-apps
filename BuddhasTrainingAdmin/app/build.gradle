@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services'
+}
+
+android {
+    namespace 'net.buddhasprovider.admin'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'net.buddhasprovider.admin'
+        minSdk 23
+        targetSdk 35
+        versionCode 4
+        versionName '1.0.4'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:34.18.0')
+    implementation 'com.google.firebase:firebase-messaging'
+}
