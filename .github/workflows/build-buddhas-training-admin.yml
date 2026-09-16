@@ -34,8 +34,11 @@ jobs:
       - name: Apply v1.0.7 fingerprint patch
         run: |
           patch -p0 < v107.patch
+          sed -i 's/import android\.app\.BiometricPrompt;/import android.hardware.biometrics.BiometricPrompt;/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
+          sed -i 's/if (errorCode != BiometricPrompt\.BIOMETRIC_ERROR_NEGATIVE_BUTTON) {/if (true) {/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           sed -i 's/versionCode 4/versionCode 7/' app/build.gradle
           sed -i "s/versionName '1.0.4'/versionName '1.0.7'/" app/build.gradle
+          file app/src/main/res/drawable/buddhas_training_logo.png
       - name: Build Admin APK
         run: gradle assembleDebug --stacktrace
       - name: Rename APK
