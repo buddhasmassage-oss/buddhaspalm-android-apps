@@ -1,0 +1,58 @@
+name: Build BuddhaStudy Tutor Biometric
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'BuddhaStudyTutor/**'
+      - '.github/workflows/build-buddhastudy-tutor-biometric.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-tutor-biometric:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build Tutor biometric APK
+        working-directory: BuddhaStudyTutor
+        run: gradle assembleDebug
+
+      - name: Package Tutor APK
+        run: |
+          cp 'BuddhaStudyTutor/app/build/outputs/apk/debug/app-debug.apk' 'BuddhaStudy-Tutor-v1.0.6-Biometric.apk'
+
+      - name: Package Tutor source ZIP
+        run: |
+          zip -r 'BuddhaStudy-Tutor-v1.0.6-Biometric-Source.zip' BuddhaStudyTutor \
+            -x 'BuddhaStudyTutor/.gradle/*' \
+               'BuddhaStudyTutor/app/build/*' \
+               'BuddhaStudyTutor/build/*'
+
+      - name: Upload biometric APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BuddhaStudy-Tutor-v1.0.6-Biometric-APK
+          path: BuddhaStudy-Tutor-v1.0.6-Biometric.apk
+          retention-days: 30
+
+      - name: Upload biometric source
+        uses: actions/upload-artifact@v4
+        with:
+          name: BuddhaStudy-Tutor-v1.0.6-Biometric-Source
+          path: BuddhaStudy-Tutor-v1.0.6-Biometric-Source.zip
+          retention-days: 30
