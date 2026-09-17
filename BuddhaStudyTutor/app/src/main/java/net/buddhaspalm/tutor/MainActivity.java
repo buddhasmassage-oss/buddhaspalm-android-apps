@@ -1,14 +1,16 @@
 package net.buddhaspalm.tutor;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
@@ -24,16 +26,40 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
+
 import com.google.firebase.messaging.FirebaseMessaging;
 
-import java.util.ArrayList;
-import java.util.List;
+import org.json.JSONObject;
 
-public class MainActivity extends Activity {
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.concurrent.Executor;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+
+public class MainActivity extends FragmentActivity {
     private static final String HOME = "https://tutor.buddhaspalm.net/";
     private static final int REQ_NOTIFY = 6101;
     private static final int REQ_MEDIA = 6102;
     private static final int REQ_FILES = 6103;
+
+    private static final String PREFS = "buddhastudy_native";
+    private static final String BIO_KEY_ALIAS = "buddhastudy_tutor_biometric_v1";
+    private static final String BIO_CT = "bio_ciphertext";
+    private static final String BIO_IV = "bio_iv";
+    private static final String BIO_CREDENTIAL_ID = "bio_credential_id";
+
     private WebView webView;
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
@@ -50,6 +76,8 @@ public class MainActivity extends Activity {
         webView.loadUrl(safeTutorUrl(getIntent().getStringExtra("click_url")));
     }
 
+    private SharedPreferences prefs() { return getSharedPreferences(PREFS, MODE_PRIVATE); }
+
     private void buildUi() {
         FrameLayout root = new FrameLayout(this);
         webView = new WebView(this);
@@ -65,29 +93,18 @@ public class MainActivity extends Activity {
         pp.gravity = Gravity.CENTER;
         root.addView(progress, pp);
 
-        // Android 15+ forces apps targeting API 35 into edge-to-edge mode.
-        // Keep the website viewport inside the real system-bar safe area so the
-        // Tutor PWA header/logo/bell never sits under the phone status bar.
         root.setOnApplyWindowInsetsListener((v, insets) -> {
-            int left;
-            int top;
-            int right;
-            int bottom;
-
+            int left, top, right, bottom;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 android.graphics.Insets bars = insets.getInsets(
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-                left = bars.left;
-                top = bars.top;
-                right = bars.right;
-                bottom = bars.bottom;
+                left = bars.left; top = bars.top; right = bars.right; bottom = bars.bottom;
             } else {
                 left = insets.getSystemWindowInsetLeft();
                 top = insets.getSystemWindowInsetTop();
                 right = insets.getSystemWindowInsetRight();
                 bottom = insets.getSystemWindowInsetBottom();
             }
-
             v.setPadding(left, top, right, bottom);
             return insets;
         });
@@ -104,10 +121,6 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
-
-        // Match normal Chrome/PWA responsive sizing as closely as possible.
-        // Explicit values prevent device/WebView text scaling from making the
-        // Tutor design unexpectedly larger than the installed PWA.
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(false);
         s.setTextZoom(100);
@@ -127,8 +140,6 @@ public class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleUrl(url); }
             @Override public void onPageFinished(WebView view, String url) {
                 progress.setVisibility(View.GONE);
-                // Reset accidental page zoom after navigation so native WebView
-                // presentation stays consistent with the Tutor PWA.
                 if (view.getScale() > 1.20f || view.getScale() < 0.80f) view.setInitialScale(0);
                 injectToken();
             }
@@ -182,7 +193,7 @@ public class MainActivity extends Activity {
         try {
             FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
                 if (!task.isSuccessful() || task.getResult() == null) return;
-                getSharedPreferences("buddhastudy_native", MODE_PRIVATE).edit().putString("fcm_token", task.getResult()).apply();
+                prefs().edit().putString("fcm_token", task.getResult()).apply();
                 injectToken();
             });
         } catch (Exception ignored) {}
@@ -190,7 +201,7 @@ public class MainActivity extends Activity {
 
     private void injectToken() {
         if (webView == null) return;
-        String token = getSharedPreferences("buddhastudy_native", MODE_PRIVATE).getString("fcm_token", "");
+        String token = prefs().getString("fcm_token", "");
         if (token == null || token.length() < 30) return;
         String device = Build.MANUFACTURER + " " + Build.MODEL;
         String version = getAppVersion();
@@ -200,7 +211,137 @@ public class MainActivity extends Activity {
 
     private String getAppVersion() {
         try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
-        catch (Exception e) { return "1.0.0"; }
+        catch (Exception e) { return "1.0.6"; }
+    }
+
+    private int biometricStatus() {
+        try {
+            int can = BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG);
+            if (can != BiometricManager.BIOMETRIC_SUCCESS) return 0;
+            String ct = prefs().getString(BIO_CT, "");
+            String iv = prefs().getString(BIO_IV, "");
+            String cid = prefs().getString(BIO_CREDENTIAL_ID, "");
+            return (!ct.isEmpty() && !iv.isEmpty() && !cid.isEmpty()) ? 2 : 1;
+        } catch (Exception e) { return 0; }
+    }
+
+    private SecretKey createBiometricKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore"); ks.load(null);
+        if (ks.containsAlias(BIO_KEY_ALIAS)) ks.deleteEntry(BIO_KEY_ALIAS);
+        KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        KeyGenParameterSpec.Builder b = new KeyGenParameterSpec.Builder(
+                BIO_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setUserAuthenticationRequired(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            b.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG);
+        } else {
+            b.setUserAuthenticationValidityDurationSeconds(-1);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) b.setInvalidatedByBiometricEnrollment(true);
+        kg.init(b.build()); return kg.generateKey();
+    }
+
+    private SecretKey getBiometricKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore"); ks.load(null);
+        java.security.Key k = ks.getKey(BIO_KEY_ALIAS, null);
+        if (!(k instanceof SecretKey)) throw new IllegalStateException("Fingerprint key is unavailable");
+        return (SecretKey) k;
+    }
+
+    private BiometricPrompt.PromptInfo promptInfo(String title, String subtitle) {
+        return new BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setSubtitle(subtitle)
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .setNegativeButtonText("Use email & password")
+                .setConfirmationRequired(false)
+                .build();
+    }
+
+    private void registerBiometricInternal(String token, String credentialId) {
+        if (token == null || token.length() < 20 || credentialId == null || credentialId.isEmpty()) {
+            jsBiometricRegistration(false, credentialId, "Registration token is missing."); return;
+        }
+        if (biometricStatus() == 0) {
+            jsBiometricRegistration(false, credentialId, "Strong fingerprint/biometric authentication is not available or not enrolled on this device."); return;
+        }
+        try {
+            SecretKey key = createBiometricKey();
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key);
+            Executor executor = ContextCompat.getMainExecutor(this);
+            BiometricPrompt prompt = new BiometricPrompt(this, executor, new BiometricPrompt.AuthenticationCallback() {
+                @Override public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                    super.onAuthenticationError(errorCode, errString); jsBiometricRegistration(false, credentialId, errString.toString());
+                }
+                @Override public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                    super.onAuthenticationSucceeded(result);
+                    try {
+                        Cipher c = result.getCryptoObject() != null ? result.getCryptoObject().getCipher() : null;
+                        if (c == null) throw new IllegalStateException("Fingerprint crypto session is unavailable");
+                        byte[] ct = c.doFinal(token.getBytes(StandardCharsets.UTF_8));
+                        byte[] iv = c.getIV();
+                        prefs().edit()
+                                .putString(BIO_CT, Base64.getEncoder().encodeToString(ct))
+                                .putString(BIO_IV, Base64.getEncoder().encodeToString(iv))
+                                .putString(BIO_CREDENTIAL_ID, credentialId)
+                                .apply();
+                        jsBiometricRegistration(true, credentialId, "");
+                    } catch (Exception e) { clearBiometricInternal(); jsBiometricRegistration(false, credentialId, "Could not protect the fingerprint login token."); }
+                }
+            });
+            prompt.authenticate(promptInfo("Enable Fingerprint Login", "Touch your fingerprint sensor to protect this Tutor login."), new BiometricPrompt.CryptoObject(cipher));
+        } catch (Exception e) { clearBiometricInternal(); jsBiometricRegistration(false, credentialId, "Could not start fingerprint setup."); }
+    }
+
+    private void authenticateBiometricInternal() {
+        if (biometricStatus() != 2) { jsBiometricLogin(false, "", "No fingerprint login is registered on this app."); return; }
+        try {
+            String ct64 = prefs().getString(BIO_CT, "");
+            String iv64 = prefs().getString(BIO_IV, "");
+            byte[] ct = Base64.getDecoder().decode(ct64); byte[] iv = Base64.getDecoder().decode(iv64);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, getBiometricKey(), new GCMParameterSpec(128, iv));
+            Executor executor = ContextCompat.getMainExecutor(this);
+            BiometricPrompt prompt = new BiometricPrompt(this, executor, new BiometricPrompt.AuthenticationCallback() {
+                @Override public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                    super.onAuthenticationError(errorCode, errString); jsBiometricLogin(false, "", errString.toString());
+                }
+                @Override public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                    super.onAuthenticationSucceeded(result);
+                    try {
+                        Cipher c = result.getCryptoObject() != null ? result.getCryptoObject().getCipher() : null;
+                        if (c == null) throw new IllegalStateException("Fingerprint crypto session is unavailable");
+                        String token = new String(c.doFinal(ct), StandardCharsets.UTF_8);
+                        jsBiometricLogin(true, token, "");
+                    } catch (Exception e) {
+                        clearBiometricInternal();
+                        jsBiometricLogin(false, "", "Fingerprint credential changed or expired. Sign in with your password and enable it again.");
+                    }
+                }
+            });
+            prompt.authenticate(promptInfo("Sign in with Fingerprint", "Touch your fingerprint sensor to open BuddhaStudy Tutor."), new BiometricPrompt.CryptoObject(cipher));
+        } catch (Exception e) {
+            clearBiometricInternal(); jsBiometricLogin(false, "", "Fingerprint credential is no longer valid. Use email and password, then enable it again.");
+        }
+    }
+
+    private void clearBiometricInternal() {
+        prefs().edit().remove(BIO_CT).remove(BIO_IV).remove(BIO_CREDENTIAL_ID).apply();
+        try { KeyStore ks = KeyStore.getInstance("AndroidKeyStore"); ks.load(null); if (ks.containsAlias(BIO_KEY_ALIAS)) ks.deleteEntry(BIO_KEY_ALIAS); } catch (Exception ignored) {}
+    }
+
+    private void jsBiometricRegistration(boolean success, String credentialId, String error) {
+        try { JSONObject o=new JSONObject();o.put("success",success);o.put("credential_id",credentialId==null?"":credentialId);if(!success)o.put("error",error==null?"Fingerprint registration failed.":error);callJs("bspNativeBiometricRegistrationResult",o); } catch(Exception ignored){}
+    }
+    private void jsBiometricLogin(boolean success, String token, String error) {
+        try { JSONObject o=new JSONObject();o.put("success",success);if(success)o.put("token",token==null?"":token);else o.put("error",error==null?"Fingerprint authentication failed.":error);callJs("bspNativeBiometricResult",o); } catch(Exception ignored){}
+    }
+    private void callJs(String fn, JSONObject payload) {
+        if (webView == null || fn == null) return;
+        String js = "if(window."+fn+"){window."+fn+"("+payload.toString()+");}";
+        webView.post(() -> webView.evaluateJavascript(js, null));
     }
 
     private static String jsQuote(String s) {
@@ -214,8 +355,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
+        super.onNewIntent(intent); setIntent(intent);
         if (webView != null) webView.loadUrl(safeTutorUrl(intent.getStringExtra("click_url")));
     }
 
@@ -231,20 +371,22 @@ public class MainActivity extends Activity {
         }
     }
 
-    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    @Override public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_MEDIA && pendingWebPermission != null) {
-            boolean all = true;
-            for (int g : grantResults) if (g != PackageManager.PERMISSION_GRANTED) all = false;
-            if (all) pendingWebPermission.grant(pendingWebPermission.getResources()); else pendingWebPermission.deny();
-            pendingWebPermission = null;
+            boolean all = true; for (int g : grantResults) if (g != PackageManager.PERMISSION_GRANTED) all = false;
+            if (all) pendingWebPermission.grant(pendingWebPermission.getResources()); else pendingWebPermission.deny(); pendingWebPermission = null;
         }
     }
 
     public class NativeBridge {
-        @JavascriptInterface public String getFcmToken() { return getSharedPreferences("buddhastudy_native", MODE_PRIVATE).getString("fcm_token", ""); }
+        @JavascriptInterface public String getFcmToken() { return prefs().getString("fcm_token", ""); }
         @JavascriptInterface public String getDeviceName() { return Build.MANUFACTURER + " " + Build.MODEL; }
         @JavascriptInterface public String getAppVersion() { return MainActivity.this.getAppVersion(); }
+        @JavascriptInterface public int getBiometricStatus() { return biometricStatus(); }
+        @JavascriptInterface public void registerBiometric(String token, String credentialId) { runOnUiThread(() -> registerBiometricInternal(token, credentialId)); }
+        @JavascriptInterface public void authenticateBiometric() { runOnUiThread(MainActivity.this::authenticateBiometricInternal); }
+        @JavascriptInterface public void clearBiometricCredential() { runOnUiThread(MainActivity.this::clearBiometricInternal); }
         @JavascriptInterface public void openNotificationSettings() {
             runOnUiThread(() -> {
                 try { startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())); }
