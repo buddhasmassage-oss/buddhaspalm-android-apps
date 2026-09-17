@@ -42,11 +42,11 @@ jobs:
 
       - name: Package Tutor APK
         run: |
-          cp 'BuddhaStudyTutor/app/build/outputs/apk/debug/app-debug.apk' 'BuddhaStudy-Tutor-v1.0.6-Biometric.apk'
+          cp 'BuddhaStudyTutor/app/build/outputs/apk/debug/app-debug.apk' 'BuddhaStudy-Tutor-v1.0.8-Biometric.apk'
 
       - name: Package Tutor source ZIP
         run: |
-          zip -r 'BuddhaStudy-Tutor-v1.0.6-Biometric-Source.zip' BuddhaStudyTutor \
+          zip -r 'BuddhaStudy-Tutor-v1.0.8-Biometric-Source.zip' BuddhaStudyTutor \
             -x 'BuddhaStudyTutor/.gradle/*' \
                'BuddhaStudyTutor/app/build/*' \
                'BuddhaStudyTutor/build/*'
@@ -54,13 +54,13 @@ jobs:
       - name: Upload biometric APK
         uses: actions/upload-artifact@v4
         with:
-          name: BuddhaStudy-Tutor-v1.0.6-Biometric-APK
-          path: BuddhaStudy-Tutor-v1.0.6-Biometric.apk
+          name: BuddhaStudy-Tutor-v1.0.8-Biometric-APK
+          path: BuddhaStudy-Tutor-v1.0.8-Biometric.apk
           retention-days: 30
 
       - name: Upload biometric source
         uses: actions/upload-artifact@v4
         with:
-          name: BuddhaStudy-Tutor-v1.0.6-Biometric-Source
-          path: BuddhaStudy-Tutor-v1.0.6-Biometric-Source.zip
+          name: BuddhaStudy-Tutor-v1.0.8-Biometric-Source
+          path: BuddhaStudy-Tutor-v1.0.8-Biometric-Source.zip
           retention-days: 30
