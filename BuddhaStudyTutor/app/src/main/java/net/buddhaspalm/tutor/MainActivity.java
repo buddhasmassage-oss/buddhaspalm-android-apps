@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
+import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
@@ -39,7 +40,6 @@ import org.json.JSONObject;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -283,8 +283,8 @@ public class MainActivity extends FragmentActivity {
                         byte[] ct = c.doFinal(token.getBytes(StandardCharsets.UTF_8));
                         byte[] iv = c.getIV();
                         prefs().edit()
-                                .putString(BIO_CT, Base64.getEncoder().encodeToString(ct))
-                                .putString(BIO_IV, Base64.getEncoder().encodeToString(iv))
+                                .putString(BIO_CT, Base64.encodeToString(ct, Base64.NO_WRAP))
+                                .putString(BIO_IV, Base64.encodeToString(iv, Base64.NO_WRAP))
                                 .putString(BIO_CREDENTIAL_ID, credentialId)
                                 .apply();
                         jsBiometricRegistration(true, credentialId, "");
@@ -300,7 +300,7 @@ public class MainActivity extends FragmentActivity {
         try {
             String ct64 = prefs().getString(BIO_CT, "");
             String iv64 = prefs().getString(BIO_IV, "");
-            byte[] ct = Base64.getDecoder().decode(ct64); byte[] iv = Base64.getDecoder().decode(iv64);
+            byte[] ct = Base64.decode(ct64, Base64.NO_WRAP); byte[] iv = Base64.decode(iv64, Base64.NO_WRAP);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, getBiometricKey(), new GCMParameterSpec(128, iv));
             Executor executor = ContextCompat.getMainExecutor(this);
