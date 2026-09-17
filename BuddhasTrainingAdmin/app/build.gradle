@@ -11,8 +11,8 @@ android {
         applicationId 'net.buddhasprovider.admin'
         minSdk 23
         targetSdk 35
-        versionCode 4
-        versionName '1.0.4'
+        versionCode 10
+        versionName '1.0.10'
     }
 
     buildTypes {
