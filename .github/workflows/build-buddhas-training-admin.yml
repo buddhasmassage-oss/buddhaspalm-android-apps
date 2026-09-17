@@ -31,14 +31,46 @@ jobs:
           SDKMANAGER="/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-      - name: Apply fingerprint patch and v1.0.12 metadata
+      - name: Apply fingerprint patch and v1.0.13 metadata
         run: |
           patch -p0 < v107.patch
           sed -i 's/import android\.app\.BiometricPrompt;/import android.hardware.biometrics.BiometricPrompt;/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           sed -i 's/if (errorCode != BiometricPrompt\.BIOMETRIC_ERROR_NEGATIVE_BUTTON) {/if (true) {/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
-          sed -i 's/BuddhasTrainingAdmin-Android\/1.0.7/BuddhasTrainingAdmin-Android\/1.0.12/g' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
+          sed -i 's/BuddhasTrainingAdmin-Android\/1.0.7/BuddhasTrainingAdmin-Android\/1.0.13/g' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           file app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           sha256sum app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      - name: Validate source launcher PNG
+        run: |
+          python3 - <<'PY'
+          import struct, zlib
+          def validate(path):
+              data = open(path, 'rb').read()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', 'bad PNG signature'
+              pos = 8
+              ihdr = False
+              iend = False
+              while pos < len(data):
+                  assert pos + 12 <= len(data), 'truncated PNG chunk header'
+                  n = struct.unpack('>I', data[pos:pos+4])[0]
+                  typ = data[pos+4:pos+8]
+                  end = pos + 12 + n
+                  assert end <= len(data), f'truncated PNG chunk {typ!r}'
+                  payload = data[pos+8:pos+8+n]
+                  stored = struct.unpack('>I', data[pos+8+n:pos+12+n])[0]
+                  calc = zlib.crc32(typ + payload) & 0xffffffff
+                  assert stored == calc, f'CRC mismatch in {typ!r}'
+                  if typ == b'IHDR':
+                      w, h = struct.unpack('>II', payload[:8])
+                      assert (w, h) == (96, 96), (w, h)
+                      ihdr = True
+                  pos = end
+                  if typ == b'IEND':
+                      iend = True
+                      break
+              assert ihdr and iend and pos == len(data), 'incomplete PNG'
+              print('VALID PNG:', path, len(data), 'bytes')
+          validate('app/src/main/res/mipmap-xxxhdpi/ic_launcher.png')
+          PY
       - name: Build Admin APK
         run: gradle assembleDebug --stacktrace
       - name: Verify APK package and signature
@@ -51,12 +83,41 @@ jobs:
           APK="app/build/outputs/apk/debug/app-debug.apk"
           mkdir -p /tmp/iconcheck
           unzip -p "$APK" res/mipmap-xxxhdpi-v4/ic_launcher.png > /tmp/iconcheck/ic_launcher.png
-          file /tmp/iconcheck/ic_launcher.png
-          sha256sum app/src/main/res/mipmap-xxxhdpi/ic_launcher.png /tmp/iconcheck/ic_launcher.png
           cmp app/src/main/res/mipmap-xxxhdpi/ic_launcher.png /tmp/iconcheck/ic_launcher.png
+          python3 - <<'PY'
+          import struct, zlib
+          def validate(path):
+              data = open(path, 'rb').read()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', 'bad PNG signature'
+              pos = 8
+              ihdr = False
+              iend = False
+              while pos < len(data):
+                  assert pos + 12 <= len(data), 'truncated PNG chunk header'
+                  n = struct.unpack('>I', data[pos:pos+4])[0]
+                  typ = data[pos+4:pos+8]
+                  end = pos + 12 + n
+                  assert end <= len(data), f'truncated PNG chunk {typ!r}'
+                  payload = data[pos+8:pos+8+n]
+                  stored = struct.unpack('>I', data[pos+8+n:pos+12+n])[0]
+                  calc = zlib.crc32(typ + payload) & 0xffffffff
+                  assert stored == calc, f'CRC mismatch in {typ!r}'
+                  if typ == b'IHDR':
+                      w, h = struct.unpack('>II', payload[:8])
+                      assert (w, h) == (96, 96), (w, h)
+                      ihdr = True
+                  pos = end
+                  if typ == b'IEND':
+                      iend = True
+                      break
+              assert ihdr and iend and pos == len(data), 'incomplete PNG'
+              print('VALID PACKAGED PNG:', path, len(data), 'bytes')
+          validate('/tmp/iconcheck/ic_launcher.png')
+          PY
+          sha256sum app/src/main/res/mipmap-xxxhdpi/ic_launcher.png /tmp/iconcheck/ic_launcher.png
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.12 Exact User Logo.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.13 Exact User Logo.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Training-Admin-v1.0.12-Exact-User-Logo
-          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.12 Exact User Logo.apk"
+          name: Buddhas-Training-Admin-v1.0.13-Exact-User-Logo
+          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.13 Exact User Logo.apk"
