@@ -11,8 +11,8 @@ android {
         applicationId 'net.buddhaspalm.tutor'
         minSdk 23
         targetSdk 35
-        versionCode 5
-        versionName '1.0.5'
+        versionCode 6
+        versionName '1.0.6'
     }
 
     buildTypes {
@@ -30,4 +30,5 @@ android {
 dependencies {
     implementation platform('com.google.firebase:firebase-bom:34.18.0')
     implementation 'com.google.firebase:firebase-messaging'
+    implementation 'androidx.biometric:biometric:1.1.0'
 }
