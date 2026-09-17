@@ -31,19 +31,26 @@ jobs:
           SDKMANAGER="/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-      - name: Apply v1.0.7 fingerprint patch
+      - name: Apply fingerprint patch and v1.0.10 metadata
         run: |
           patch -p0 < v107.patch
           sed -i 's/import android\.app\.BiometricPrompt;/import android.hardware.biometrics.BiometricPrompt;/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           sed -i 's/if (errorCode != BiometricPrompt\.BIOMETRIC_ERROR_NEGATIVE_BUTTON) {/if (true) {/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
-          sed -i 's/versionCode 4/versionCode 7/' app/build.gradle
-          sed -i "s/versionName '1.0.4'/versionName '1.0.7'/" app/build.gradle
+          sed -i 's/versionCode 4/versionCode 10/' app/build.gradle
+          sed -i "s/versionName '1.0.4'/versionName '1.0.10'/" app/build.gradle
+          sed -i 's/BuddhasTrainingAdmin-Android\/1.0.7/BuddhasTrainingAdmin-Android\/1.0.10/g' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           file app/src/main/res/drawable/buddhas_training_logo.png
+          sha256sum app/src/main/res/drawable/buddhas_training_logo.png
       - name: Build Admin APK
         run: gradle assembleDebug --stacktrace
+      - name: Verify APK package and signature
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          /usr/local/lib/android/sdk/build-tools/35.0.0/apksigner verify --verbose --print-certs "$APK"
+          /usr/local/lib/android/sdk/build-tools/35.0.0/aapt dump badging "$APK" | head -20
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.7 Fingerprint Registration Fix.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.10 Exact Logo Valid Package.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Training-Admin-v1.0.7-Fingerprint-Registration-Fix
-          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.7 Fingerprint Registration Fix.apk"
+          name: Buddhas-Training-Admin-v1.0.10-Exact-Logo-Valid-Package
+          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.10 Exact Logo Valid Package.apk"
