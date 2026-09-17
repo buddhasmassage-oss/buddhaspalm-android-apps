@@ -31,12 +31,12 @@ jobs:
           SDKMANAGER="/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-      - name: Apply fingerprint patch and v1.0.11 metadata
+      - name: Apply fingerprint patch and v1.0.12 metadata
         run: |
           patch -p0 < v107.patch
           sed -i 's/import android\.app\.BiometricPrompt;/import android.hardware.biometrics.BiometricPrompt;/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           sed -i 's/if (errorCode != BiometricPrompt\.BIOMETRIC_ERROR_NEGATIVE_BUTTON) {/if (true) {/' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
-          sed -i 's/BuddhasTrainingAdmin-Android\/1.0.7/BuddhasTrainingAdmin-Android\/1.0.11/g' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
+          sed -i 's/BuddhasTrainingAdmin-Android\/1.0.7/BuddhasTrainingAdmin-Android\/1.0.12/g' app/src/main/java/net/buddhasprovider/admin/MainActivity.java
           file app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           sha256sum app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
       - name: Build Admin APK
@@ -46,9 +46,17 @@ jobs:
           APK="app/build/outputs/apk/debug/app-debug.apk"
           /usr/local/lib/android/sdk/build-tools/35.0.0/apksigner verify --verbose --print-certs "$APK"
           /usr/local/lib/android/sdk/build-tools/35.0.0/aapt dump badging "$APK" | head -20
+      - name: Verify packaged launcher icon
+        run: |
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          mkdir -p /tmp/iconcheck
+          unzip -p "$APK" res/mipmap-xxxhdpi-v4/ic_launcher.png > /tmp/iconcheck/ic_launcher.png
+          file /tmp/iconcheck/ic_launcher.png
+          sha256sum app/src/main/res/mipmap-xxxhdpi/ic_launcher.png /tmp/iconcheck/ic_launcher.png
+          cmp app/src/main/res/mipmap-xxxhdpi/ic_launcher.png /tmp/iconcheck/ic_launcher.png
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.11 Exact User Logo.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk "Buddhas Training Admin v1.0.12 Exact User Logo.apk"
       - uses: actions/upload-artifact@v4
         with:
-          name: Buddhas-Training-Admin-v1.0.11-Exact-User-Logo
-          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.11 Exact User Logo.apk"
+          name: Buddhas-Training-Admin-v1.0.12-Exact-User-Logo
+          path: "BuddhasTrainingAdmin/Buddhas Training Admin v1.0.12 Exact User Logo.apk"
