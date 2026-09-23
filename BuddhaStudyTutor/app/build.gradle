@@ -1,7 +1,22 @@
+import java.util.Properties
+
 plugins {
     id 'com.android.application'
     id 'com.google.gms.google-services'
 }
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+def signingEnv = ['storeFile': 'TUTOR_KEYSTORE_PATH', 'storePassword': 'TUTOR_KEYSTORE_PASSWORD',
+                  'keyAlias': 'TUTOR_KEY_ALIAS', 'keyPassword': 'TUTOR_KEY_PASSWORD']
+signingEnv.each { key, envName ->
+    if (System.getenv(envName)) keystoreProperties.setProperty(key, System.getenv(envName))
+}
+def hasReleaseSigning = signingEnv.keySet().every { keystoreProperties.getProperty(it) }
 
 android {
     namespace 'net.buddhaspalm.tutor'
@@ -11,13 +26,29 @@ android {
         applicationId 'net.buddhaspalm.tutor'
         minSdk 23
         targetSdk 35
-        versionCode 8
-        versionName '1.0.8'
+        versionCode 9
+        versionName '1.0.9'
+        testInstrumentationRunner 'net.buddhaspalm.tutor.StoreScreenshotRunner'
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            versionNameSuffix '-debug'
+        }
         release {
             minifyEnabled false
+            if (hasReleaseSigning) signingConfig signingConfigs.release
         }
     }
 

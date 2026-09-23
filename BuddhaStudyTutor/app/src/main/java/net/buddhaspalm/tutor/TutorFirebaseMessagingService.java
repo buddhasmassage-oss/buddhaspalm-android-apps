@@ -31,10 +31,14 @@ public class TutorFirebaseMessagingService extends FirebaseMessagingService {
             if (remoteMessage.getNotification().getBody() != null) body = remoteMessage.getNotification().getBody();
         }
         Map<String,String> data = remoteMessage.getData();
+        if (data.get("title") != null) title = data.get("title");
+        if (data.get("body") != null) body = data.get("body");
         String clickUrl = data.get("click_url");
         if (clickUrl == null || !clickUrl.startsWith("https://tutor.buddhaspalm.net/")) clickUrl = "https://tutor.buddhaspalm.net/";
 
-        Intent intent = new Intent(this, MainActivity.class);
+        NotificationStore.add(this, title, body, clickUrl);
+
+        Intent intent = new Intent(this, TutorWebActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         intent.putExtra("click_url", clickUrl);
         PendingIntent pi = PendingIntent.getActivity(this, (int)(System.currentTimeMillis() & 0x7fffffff), intent,
@@ -42,7 +46,7 @@ public class TutorFirebaseMessagingService extends FirebaseMessagingService {
 
         Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
-        b.setSmallIcon(android.R.drawable.stat_notify_chat)
+        b.setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new Notification.BigTextStyle().bigText(body))
