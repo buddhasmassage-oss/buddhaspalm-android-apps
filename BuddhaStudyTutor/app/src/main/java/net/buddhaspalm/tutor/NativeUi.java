@@ -23,6 +23,14 @@ final class NativeUi {
     private NativeUi() {}
 
     static void applyInsets(View root) {
+        if (root.getContext() instanceof android.app.Activity) {
+            android.view.Window window = ((android.app.Activity) root.getContext()).getWindow();
+            window.setStatusBarColor(BG);
+            window.setNavigationBarColor(BG);
+            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (android.os.Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            window.getDecorView().setSystemUiVisibility(flags);
+        }
         final int l = root.getPaddingLeft(), t = root.getPaddingTop();
         final int r = root.getPaddingRight(), b = root.getPaddingBottom();
         root.setOnApplyWindowInsetsListener((v, insets) -> {
