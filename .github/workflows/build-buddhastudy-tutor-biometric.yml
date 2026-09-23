@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      TUTOR_KEYSTORE_PATH: ${{ runner.temp }}/tutor-release.jks
+      TUTOR_KEYSTORE_PATH: /tmp/tutor-release.jks
       TUTOR_KEYSTORE_PASSWORD: ${{ secrets.TUTOR_KEYSTORE_PASSWORD }}
       TUTOR_KEY_ALIAS: ${{ secrets.TUTOR_KEY_ALIAS }}
       TUTOR_KEY_PASSWORD: ${{ secrets.TUTOR_KEY_PASSWORD }}
