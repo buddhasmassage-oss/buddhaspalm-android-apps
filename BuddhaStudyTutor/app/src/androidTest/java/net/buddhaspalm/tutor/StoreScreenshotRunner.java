@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -19,6 +20,7 @@ public class StoreScreenshotRunner extends Instrumentation {
         Bundle result = new Bundle();
         try {
             capture(MainActivity.class, "BuddhaStudy Tutor", "01-dashboard");
+            captureDashboardLower();
             capture(NotificationInboxActivity.class, "No saved notifications yet", "02-notification-inbox");
             capture(DownloadsActivity.class, "No Tutor downloads recorded yet", "03-course-downloads");
             capture(AboutActivity.class, "About BuddhaStudy", "04-about");
@@ -48,6 +50,39 @@ public class StoreScreenshotRunner extends Instrumentation {
         bitmap.recycle();
         runOnMainSync(activity::finish);
         waitForIdleSync();
+    }
+    private void captureDashboardLower() throws Exception {
+        Activity activity = startActivitySync(new Intent(getTargetContext(), MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        waitForIdleSync();
+        runOnMainSync(() -> {
+            ScrollView scroll = findScroll(activity.getWindow().getDecorView());
+            if (scroll == null) throw new AssertionError("Dashboard cannot scroll");
+            scroll.fullScroll(View.FOCUS_DOWN);
+        });
+        waitForIdleSync();
+        SystemClock.sleep(500);
+        Bitmap bitmap = getUiAutomation().takeScreenshot();
+        if (bitmap == null) throw new AssertionError("Lower dashboard screenshot unavailable");
+        File dir = new File(getTargetContext().getExternalFilesDir(null), "store-screenshots");
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new AssertionError("Cannot create screenshot directory");
+        try (FileOutputStream out = new FileOutputStream(new File(dir, "01-dashboard-lower.png"))) {
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) throw new AssertionError("PNG failed");
+        }
+        bitmap.recycle();
+        runOnMainSync(activity::finish);
+        waitForIdleSync();
+    }
+    private ScrollView findScroll(View view) {
+        if (view instanceof ScrollView) return (ScrollView) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                ScrollView found = findScroll(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
     private void verifyDashboard(View root) {
         if (!contains(root, "About BuddhaStudy") || !contains(root, "Android App Settings"))
