@@ -5,6 +5,8 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.provider.Settings;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -66,13 +68,16 @@ public class MainActivity extends FragmentActivity {
                 ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
 
         page.addView(buildHero(), new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 286)));
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         NativeUi.addSpace(page, 18);
         page.addView(buildSectionHeader());
         NativeUi.addSpace(page, 10);
 
-        LinearLayout firstRow = featureRow();
+        boolean narrow = getResources().getConfiguration().screenWidthDp < 600;
+        LinearLayout cards = new LinearLayout(this);
+        cards.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout firstRow = narrow ? cards : featureRow();
         firstRow.addView(featureCard(
                 "Learning Portal",
                 "Open your BuddhaStudy lessons, quizzes, modules and course progress.",
@@ -81,7 +86,8 @@ public class MainActivity extends FragmentActivity {
                 new int[]{Color.rgb(21, 104, 244), Color.rgb(43, 197, 255)},
                 new int[]{Color.rgb(16, 62, 137), Color.rgb(12, 76, 155)},
                 v -> openPortal(HOME),
-                false), featureParams(true));
+                false), featureParams(narrow, true));
+        if (narrow) NativeUi.addSpace(cards, 12);
         firstRow.addView(featureCard(
                 "Notification Inbox",
                 "Keep recent BuddhaStudy push messages in a native inbox even after dismissing the system notification.",
@@ -90,11 +96,12 @@ public class MainActivity extends FragmentActivity {
                 new int[]{Color.rgb(117, 43, 255), Color.rgb(168, 59, 255)},
                 new int[]{Color.rgb(59, 31, 126), Color.rgb(70, 26, 132)},
                 v -> startActivity(new Intent(this, NotificationInboxActivity.class)),
-                true), featureParams(false));
-        page.addView(firstRow);
+                true), featureParams(narrow, false));
+        if (!narrow) page.addView(firstRow);
 
-        NativeUi.addSpace(page, 10);
-        LinearLayout secondRow = featureRow();
+        if (narrow) NativeUi.addSpace(cards, 12);
+        else NativeUi.addSpace(page, 12);
+        LinearLayout secondRow = narrow ? cards : featureRow();
         secondRow.addView(featureCard(
                 "Course Downloads",
                 "See learning files you downloaded from the Tutor portal and keep them for offline study.",
@@ -103,7 +110,8 @@ public class MainActivity extends FragmentActivity {
                 new int[]{Color.rgb(18, 193, 176), Color.rgb(63, 225, 226)},
                 new int[]{Color.rgb(10, 92, 119), Color.rgb(9, 109, 127)},
                 v -> startActivity(new Intent(this, DownloadsActivity.class)),
-                false), featureParams(true));
+                false), featureParams(narrow, true));
+        if (narrow) NativeUi.addSpace(cards, 12);
         secondRow.addView(featureCard(
                 "Biometric Access",
                 "Use secure biometric sign-in to quickly and safely access your BuddhaStudy account.",
@@ -112,8 +120,20 @@ public class MainActivity extends FragmentActivity {
                 new int[]{Color.rgb(238, 161, 41), Color.rgb(249, 197, 83)},
                 new int[]{Color.rgb(101, 72, 58), Color.rgb(85, 70, 82)},
                 v -> openPortal(HOME),
-                false), featureParams(false));
-        page.addView(secondRow);
+                false), featureParams(narrow, false));
+        if (narrow) page.addView(cards);
+        else page.addView(secondRow);
+
+        NativeUi.addSpace(page, 18);
+        TextView about = NativeUi.button(this, "About BuddhaStudy", Color.rgb(35, 71, 143), Color.WHITE);
+        about.setOnClickListener(v -> startActivity(new Intent(this, AboutActivity.class)));
+        page.addView(about, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 52)));
+        NativeUi.addSpace(page, 10);
+        TextView appSettings = NativeUi.button(this, "Android App Settings", Color.rgb(25, 51, 103), Color.WHITE);
+        appSettings.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + getPackageName()))));
+        page.addView(appSettings, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 52)));
+        NativeUi.addSpace(page, 24);
 
         dashboardScroll.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
@@ -128,6 +148,7 @@ public class MainActivity extends FragmentActivity {
     private FrameLayout buildHero() {
         FrameLayout hero = new FrameLayout(this);
         hero.setClipToOutline(true);
+        hero.setMinimumHeight(NativeUi.dp(this, 286));
         hero.setBackground(NativeUi.roundedBorder(Color.argb(35, 38, 92, 190), Color.rgb(61, 140, 255), 24, this));
         hero.setElevation(NativeUi.dp(this, 6));
 
@@ -149,7 +170,7 @@ public class MainActivity extends FragmentActivity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(NativeUi.dp(this, 18), NativeUi.dp(this, 18), NativeUi.dp(this, 18), NativeUi.dp(this, 12));
         hero.addView(content, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -163,7 +184,8 @@ public class MainActivity extends FragmentActivity {
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logoFrame.addView(logo, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        head.addView(logoFrame, new LinearLayout.LayoutParams(NativeUi.dp(this, 74), NativeUi.dp(this, 74)));
+        int logoSize = NativeUi.dp(this, getResources().getConfiguration().screenWidthDp < 600 ? 62 : 74);
+        head.addView(logoFrame, new LinearLayout.LayoutParams(logoSize, logoSize));
 
         LinearLayout titleBox = new LinearLayout(this);
         titleBox.setOrientation(LinearLayout.VERTICAL);
@@ -172,7 +194,7 @@ public class MainActivity extends FragmentActivity {
         SpannableString brand = new SpannableString("BuddhaStudy Tutor");
         int tutorStart = "BuddhaStudy ".length();
         brand.setSpan(new ForegroundColorSpan(Color.rgb(89, 218, 255)), tutorStart, brand.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        TextView title = NativeUi.text(this, "", 25, Color.WHITE, true);
+        TextView title = NativeUi.text(this, "", getResources().getConfiguration().screenWidthDp < 600 ? 21 : 25, Color.WHITE, true);
         title.setText(brand);
         title.setLetterSpacing(-0.02f);
         titleBox.addView(title);
@@ -202,7 +224,8 @@ public class MainActivity extends FragmentActivity {
         dots.setOrientation(LinearLayout.HORIZONTAL);
         dots.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams dotsParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
+                LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 32));
+        dotsParams.topMargin = NativeUi.dp(this, 12);
         content.addView(dots, dotsParams);
         addDot(dots, 30, true);
         addDot(dots, 8, false);
@@ -223,14 +246,15 @@ public class MainActivity extends FragmentActivity {
                 GradientDrawable.Orientation.TOP_BOTTOM, 8, 0, 0, this));
         row.addView(accent, new LinearLayout.LayoutParams(NativeUi.dp(this, 6), NativeUi.dp(this, 34)));
 
+        LinearLayout labels = new LinearLayout(this);
+        labels.setOrientation(LinearLayout.VERTICAL);
+        labels.setPadding(NativeUi.dp(this, 12), 0, 0, 0);
         TextView title = NativeUi.text(this, "Your study tools", 22, Color.WHITE, true);
-        title.setPadding(NativeUi.dp(this, 12), 0, 0, 0);
-        row.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
+        labels.addView(title);
         TextView small = NativeUi.text(this, "ALL YOU NEED IN ONE PLACE", 9, Color.rgb(178, 196, 241), false);
-        small.setLetterSpacing(0.30f);
-        small.setGravity(Gravity.END);
-        row.addView(small);
+        small.setLetterSpacing(0.18f);
+        labels.addView(small);
+        row.addView(labels, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         return row;
     }
 
@@ -241,8 +265,9 @@ public class MainActivity extends FragmentActivity {
         return row;
     }
 
-    private LinearLayout.LayoutParams featureParams(boolean left) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, NativeUi.dp(this, 232), 1);
+    private LinearLayout.LayoutParams featureParams(boolean narrow, boolean left) {
+        if (narrow) return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
         if (left) p.setMargins(0, 0, NativeUi.dp(this, 5), 0);
         else p.setMargins(NativeUi.dp(this, 5), 0, 0, 0);
         return p;
@@ -269,7 +294,7 @@ public class MainActivity extends FragmentActivity {
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(NativeUi.dp(this, 14), NativeUi.dp(this, 14), NativeUi.dp(this, 12), NativeUi.dp(this, 12));
-        shell.addView(content, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        shell.addView(content, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
         FrameLayout iconTile = new FrameLayout(this);
         iconTile.setBackground(NativeUi.gradient(actionColors, GradientDrawable.Orientation.TL_BR, 13,
@@ -294,11 +319,10 @@ public class MainActivity extends FragmentActivity {
         content.addView(heading);
         NativeUi.addSpace(content, 5);
         TextView desc = NativeUi.text(this, body, 12.5f, Color.rgb(220, 231, 250), false);
-        desc.setMaxLines(4);
+
         content.addView(desc);
 
-        View spacer = new View(this);
-        content.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1));
+        NativeUi.addSpace(content, 16);
         LinearLayout button = actionPill(action, 0, actionColors, Color.WHITE, false);
         button.setOnClickListener(listener);
         content.addView(button, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 44)));

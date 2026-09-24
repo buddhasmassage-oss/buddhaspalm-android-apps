@@ -36,6 +36,7 @@ public class StoreScreenshotRunner extends Instrumentation {
         final boolean[] found = {false};
         runOnMainSync(() -> found[0] = contains(activity.getWindow().getDecorView(), expected));
         if (!found[0]) throw new AssertionError("Missing screen text: " + expected);
+        if (type == MainActivity.class) runOnMainSync(() -> verifyDashboard(activity.getWindow().getDecorView()));
         SystemClock.sleep(1200);
         Bitmap bitmap = getUiAutomation().takeScreenshot();
         if (bitmap == null) throw new AssertionError("Screenshot unavailable");
@@ -48,7 +49,30 @@ public class StoreScreenshotRunner extends Instrumentation {
         runOnMainSync(activity::finish);
         waitForIdleSync();
     }
-    private boolean contains(View view, String text) {
+    private void verifyDashboard(View root) {
+        if (!contains(root, "About BuddhaStudy") || !contains(root, "Android App Settings"))
+            throw new AssertionError("Dashboard footer actions missing");
+        for (String label : new String[]{"Open Portal", "View Alerts", "Open Downloads", "Manage Access"}) {
+            TextView text = findText(root, label);
+            if (text == null) throw new AssertionError("Missing dashboard action: " + label);
+            View pill = (View) text.getParent();
+            View content = (View) pill.getParent();
+            View shell = (View) content.getParent();
+            if (content.getBottom() > shell.getHeight())
+                throw new AssertionError("Card clips action: " + label);
+        }
+    }
+    private TextView findText(View view, String text) {
+        if (view instanceof TextView && text.contentEquals(((TextView) view).getText())) return (TextView) view;
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                TextView found = findText(group.getChildAt(i), text);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }    private boolean contains(View view, String text) {
         if (view instanceof TextView && text.contentEquals(((TextView) view).getText())) return true;
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;

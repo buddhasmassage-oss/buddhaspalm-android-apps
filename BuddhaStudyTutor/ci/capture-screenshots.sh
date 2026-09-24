@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-adb shell wm size 1080x1920
-adb shell wm density 420
+adb shell wm size 720x1600
+adb shell wm density 320
+adb shell settings put system font_scale 1.2
 adb install -r BuddhaStudyTutor/app/build/outputs/apk/debug/app-debug.apk
 adb install -r BuddhaStudyTutor/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell pm grant net.buddhaspalm.tutor android.permission.POST_NOTIFICATIONS
