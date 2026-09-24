@@ -387,7 +387,7 @@ public class MainActivity extends FragmentActivity {
         indicator.setBackground(NativeUi.rounded(active ? Color.rgb(216, 234, 255) : Color.TRANSPARENT, 4, this));
         LinearLayout.LayoutParams ind = new LinearLayout.LayoutParams(active ? NativeUi.dp(this, 30) : NativeUi.dp(this, 2), NativeUi.dp(this, 3));
         ind.topMargin = NativeUi.dp(this, 4);
-        item.addView(ind);
+        item.addView(indicator, ind);
         parent.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
     }
 
