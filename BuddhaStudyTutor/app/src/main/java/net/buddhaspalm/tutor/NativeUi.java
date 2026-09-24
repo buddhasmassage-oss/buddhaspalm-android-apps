@@ -4,8 +4,11 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -24,20 +27,42 @@ final class NativeUi {
 
     static void applyInsets(View root) {
         if (root.getContext() instanceof android.app.Activity) {
-            android.view.Window window = ((android.app.Activity) root.getContext()).getWindow();
+            Window window = ((android.app.Activity) root.getContext()).getWindow();
             window.setStatusBarColor(BG);
             window.setNavigationBarColor(BG);
             int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            if (android.os.Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             window.getDecorView().setSystemUiVisibility(flags);
         }
+        applyInsetPadding(root);
+    }
+
+    static void applyDarkInsets(View root) {
+        if (root.getContext() instanceof android.app.Activity) {
+            Window window = ((android.app.Activity) root.getContext()).getWindow();
+            int darkBlue = Color.rgb(4, 18, 52);
+            window.setStatusBarColor(darkBlue);
+            window.setNavigationBarColor(darkBlue);
+            window.getDecorView().setSystemUiVisibility(0);
+        }
+        applyInsetPadding(root);
+    }
+
+    private static void applyInsetPadding(View root) {
         final int l = root.getPaddingLeft(), t = root.getPaddingTop();
         final int r = root.getPaddingRight(), b = root.getPaddingBottom();
         root.setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(l + insets.getSystemWindowInsetLeft(),
-                    t + insets.getSystemWindowInsetTop(),
-                    r + insets.getSystemWindowInsetRight(),
-                    b + insets.getSystemWindowInsetBottom());
+            int left, top, right, bottom;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                left = bars.left; top = bars.top; right = bars.right; bottom = bars.bottom;
+            } else {
+                left = insets.getSystemWindowInsetLeft();
+                top = insets.getSystemWindowInsetTop();
+                right = insets.getSystemWindowInsetRight();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(l + left, t + top, r + right, b + bottom);
             return insets;
         });
         root.requestApplyInsets();
@@ -57,6 +82,14 @@ final class NativeUi {
     static GradientDrawable roundedBorder(int color, int stroke, int radiusDp, Context c) {
         GradientDrawable d = rounded(color, radiusDp, c);
         d.setStroke(dp(c, 1), stroke);
+        return d;
+    }
+
+    static GradientDrawable gradient(int[] colors, GradientDrawable.Orientation orientation,
+                                     int radiusDp, int strokeColor, int strokeWidthDp, Context c) {
+        GradientDrawable d = new GradientDrawable(orientation, colors);
+        d.setCornerRadius(dp(c, radiusDp));
+        if (strokeWidthDp > 0) d.setStroke(dp(c, strokeWidthDp), strokeColor);
         return d;
     }
 

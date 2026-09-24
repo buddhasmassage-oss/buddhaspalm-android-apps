@@ -41,24 +41,24 @@ jobs:
           else
             echo "Release signing is not configured. Release output will be unsigned; do not submit it."
           fi
-      - name: Build and lint Tutor 1.0.9
+      - name: Build and lint Tutor 1.0.10
         working-directory: BuddhaStudyTutor
         run: gradle assembleDebug assembleDebugAndroidTest assembleRelease lintDebug --stacktrace
       - name: Package APKs and signing report
         run: |
           mkdir -p tutor-artifacts
-          cp BuddhaStudyTutor/app/build/outputs/apk/debug/app-debug.apk tutor-artifacts/BuddhaStudy-Tutor-v1.0.9-TEST-ONLY.apk
+          cp BuddhaStudyTutor/app/build/outputs/apk/debug/app-debug.apk tutor-artifacts/BuddhaStudy-Tutor-v1.0.10-TEST-ONLY.apk
           if [ -f BuddhaStudyTutor/app/build/outputs/apk/release/app-release.apk ]; then
-            cp BuddhaStudyTutor/app/build/outputs/apk/release/app-release.apk tutor-artifacts/BuddhaStudy-Tutor-v1.0.9-release.apk
-            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs tutor-artifacts/BuddhaStudy-Tutor-v1.0.9-release.apk > tutor-artifacts/signing-report.txt
+            cp BuddhaStudyTutor/app/build/outputs/apk/release/app-release.apk tutor-artifacts/BuddhaStudy-Tutor-v1.0.10-release.apk
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs tutor-artifacts/BuddhaStudy-Tutor-v1.0.10-release.apk > tutor-artifacts/signing-report.txt
           else
-            cp BuddhaStudyTutor/app/build/outputs/apk/release/app-release-unsigned.apk tutor-artifacts/BuddhaStudy-Tutor-v1.0.9-UNSIGNED.apk
+            cp BuddhaStudyTutor/app/build/outputs/apk/release/app-release-unsigned.apk tutor-artifacts/BuddhaStudy-Tutor-v1.0.10-UNSIGNED.apk
             echo "NOT READY FOR UPLOAD: release signing key has not been configured. TEST-ONLY is debug signed. UNSIGNED must be signed with the owner's permanent release key." > tutor-artifacts/signing-report.txt
           fi
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: BuddhaStudy-Tutor-v1.0.9-APKs
+          name: BuddhaStudy-Tutor-v1.0.10-APKs
           path: tutor-artifacts/
           retention-days: 30
       - name: Enable emulator acceleration
@@ -77,7 +77,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BuddhaStudy-Tutor-v1.0.9-Screenshots
+          name: BuddhaStudy-Tutor-v1.0.10-Screenshots
           path: |
             store-screenshots/
             screenshot-test.txt

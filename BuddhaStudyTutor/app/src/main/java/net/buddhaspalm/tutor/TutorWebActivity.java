@@ -33,6 +33,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -100,23 +101,29 @@ public class TutorWebActivity extends FragmentActivity {
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(NativeUi.dp(this, 8), NativeUi.dp(this, 7), NativeUi.dp(this, 8), NativeUi.dp(this, 7));
-        top.setBackgroundColor(NativeUi.NAVY);
-        Button back = NativeUi.button(this, "‹", Color.rgb(30,41,59), Color.WHITE);
+        top.setPadding(NativeUi.dp(this, 8), NativeUi.dp(this, 6), NativeUi.dp(this, 8), NativeUi.dp(this, 6));
+        top.setBackground(NativeUi.gradient(
+                new int[]{Color.rgb(4, 21, 61), Color.rgb(13, 50, 130), Color.rgb(20, 63, 164)},
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, 0, 0, 0, this));
+
+        Button back = NativeUi.button(this, "‹", Color.argb(80, 255, 255, 255), Color.WHITE);
         back.setOnClickListener(v -> { if (webView.canGoBack()) webView.goBack(); else finish(); });
-        top.addView(back, new LinearLayout.LayoutParams(NativeUi.dp(this, 48), NativeUi.dp(this, 42)));
-        TextView title = NativeUi.text(this, "BuddhaStudy Learning Portal", 15, Color.WHITE, true);
+        top.addView(back, new LinearLayout.LayoutParams(NativeUi.dp(this, 46), NativeUi.dp(this, 40)));
+
+        TextView title = NativeUi.text(this, "BuddhaStudy Learning Portal", 14.5f, Color.WHITE, true);
         title.setPadding(NativeUi.dp(this, 10), 0, NativeUi.dp(this, 8), 0);
         top.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        Button share = NativeUi.button(this, "Share", Color.rgb(30,41,59), Color.WHITE);
+
+        Button share = NativeUi.button(this, "Share", Color.argb(65, 255, 255, 255), Color.WHITE);
         share.setOnClickListener(v -> shareCurrentPage());
-        top.addView(share, new LinearLayout.LayoutParams(NativeUi.dp(this, 72), NativeUi.dp(this, 42)));
-        Button refresh = NativeUi.button(this, "↻", Color.rgb(30,41,59), Color.WHITE);
+        top.addView(share, new LinearLayout.LayoutParams(NativeUi.dp(this, 68), NativeUi.dp(this, 40)));
+
+        Button refresh = NativeUi.button(this, "↻", Color.argb(65, 255, 255, 255), Color.WHITE);
         refresh.setOnClickListener(v -> webView.reload());
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(NativeUi.dp(this, 48), NativeUi.dp(this, 42));
-        rp.setMargins(NativeUi.dp(this, 6), 0, 0, 0);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(NativeUi.dp(this, 46), NativeUi.dp(this, 40));
+        rp.setMargins(NativeUi.dp(this, 5), 0, 0, 0);
         top.addView(refresh, rp);
-        root.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(top, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 54)));
 
         FrameLayout content = new FrameLayout(this);
         content.addView(webView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -143,13 +150,22 @@ public class TutorWebActivity extends FragmentActivity {
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
         bottom.setGravity(Gravity.CENTER);
-        bottom.setPadding(NativeUi.dp(this, 5), NativeUi.dp(this, 5), NativeUi.dp(this, 5), NativeUi.dp(this, 5));
-        bottom.setBackground(NativeUi.roundedBorder(Color.WHITE, NativeUi.BORDER, 0, this));
-        addBottomAction(bottom, "Dashboard", v -> { startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)); finish(); });
-        addBottomAction(bottom, "Portal", v -> webView.loadUrl(HOME));
-        addBottomAction(bottom, "Alerts", v -> startActivity(new Intent(this, NotificationInboxActivity.class)));
-        addBottomAction(bottom, "Downloads", v -> startActivity(new Intent(this, DownloadsActivity.class)));
-        root.addView(bottom, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 58)));
+        bottom.setPadding(NativeUi.dp(this, 4), NativeUi.dp(this, 5), NativeUi.dp(this, 4), NativeUi.dp(this, 4));
+        bottom.setBackground(NativeUi.gradient(
+                new int[]{Color.rgb(4, 22, 62), Color.rgb(9, 38, 96), Color.rgb(8, 25, 63)},
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, 20,
+                Color.rgb(35, 74, 142), 1, this));
+        bottom.setElevation(NativeUi.dp(this, 12));
+
+        addPortalNavItem(bottom, "Home", R.drawable.ic_home_outline, false,
+                v -> { startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)); finish(); });
+        addPortalNavItem(bottom, "Learn", R.drawable.ic_book_outline, true, v -> webView.loadUrl(HOME));
+        addPortalNavItem(bottom, "Downloads", R.drawable.ic_download_outline, false,
+                v -> startActivity(new Intent(this, DownloadsActivity.class)));
+        addPortalNavItem(bottom, "Alerts", R.drawable.ic_bell_outline, false,
+                v -> startActivity(new Intent(this, NotificationInboxActivity.class)));
+        addPortalNavItem(bottom, "Profile", R.drawable.ic_person_outline, false, v -> openProfileFromPage());
+        root.addView(bottom, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, NativeUi.dp(this, 76)));
 
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             int left, topInset, right, bottomInset;
@@ -162,15 +178,44 @@ public class TutorWebActivity extends FragmentActivity {
             v.setPadding(left, topInset, right, bottomInset);
             return insets;
         });
+        getWindow().setStatusBarColor(Color.rgb(4, 18, 52));
+        getWindow().setNavigationBarColor(Color.rgb(4, 18, 52));
+        getWindow().getDecorView().setSystemUiVisibility(0);
         setContentView(root);
         root.requestApplyInsets();
     }
 
-    private void addBottomAction(LinearLayout parent, String label, View.OnClickListener click) {
-        Button b = NativeUi.button(this, label, Color.WHITE, NativeUi.TEXT);
-        b.setTextSize(11);
-        b.setOnClickListener(click);
-        parent.addView(b, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+    private void addPortalNavItem(LinearLayout parent, String label, int iconRes, boolean active, View.OnClickListener click) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setGravity(Gravity.CENTER);
+        item.setClickable(true);
+        item.setFocusable(true);
+        item.setOnClickListener(click);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(active ? Color.rgb(80, 145, 255) : Color.rgb(157, 181, 232));
+        icon.setPadding(NativeUi.dp(this, 3), NativeUi.dp(this, 3), NativeUi.dp(this, 3), NativeUi.dp(this, 3));
+        item.addView(icon, new LinearLayout.LayoutParams(NativeUi.dp(this, 29), NativeUi.dp(this, 29)));
+
+        TextView text = NativeUi.text(this, label, 10.5f, active ? Color.WHITE : Color.rgb(174, 193, 235), active);
+        text.setGravity(Gravity.CENTER);
+        item.addView(text);
+
+        View indicator = new View(this);
+        indicator.setBackground(NativeUi.rounded(active ? Color.rgb(224, 239, 255) : Color.TRANSPARENT, 4, this));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(active ? NativeUi.dp(this, 30) : NativeUi.dp(this, 2), NativeUi.dp(this, 3));
+        ip.topMargin = NativeUi.dp(this, 4);
+        item.addView(indicator, ip);
+
+        parent.addView(item, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
+    }
+
+    private void openProfileFromPage() {
+        if (webView == null) return;
+        String js = "(function(){var a=Array.prototype.slice.call(document.querySelectorAll('a')).find(function(x){var t=((x.textContent||'')+' '+(x.getAttribute('href')||'')).toLowerCase();return t.indexOf('profile')>=0||t.indexOf('my account')>=0||t.indexOf('account')>=0;});if(a&&a.href){location.href=a.href;}else{location.href='" + HOME + "';}})();";
+        webView.evaluateJavascript(js, null);
     }
 
     private void showOffline(boolean show) {
@@ -305,7 +350,7 @@ public class TutorWebActivity extends FragmentActivity {
 
     private String getAppVersion() {
         try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
-        catch (Exception e) { return "1.0.6"; }
+        catch (Exception e) { return "1.0.10"; }
     }
 
     private int biometricStatus() {
