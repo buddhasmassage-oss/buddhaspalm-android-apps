@@ -159,8 +159,8 @@ public class MainActivity extends FragmentActivity {
         logoFrame.setPadding(NativeUi.dp(this, 2), NativeUi.dp(this, 2), NativeUi.dp(this, 2), NativeUi.dp(this, 2));
         logoFrame.setBackground(NativeUi.roundedBorder(Color.argb(42, 0, 23, 79), Color.argb(220, 109, 180, 255), 18, this));
         ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.app_icon);
-        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        logo.setImageResource(R.drawable.dashboard_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         logoFrame.addView(logo, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         head.addView(logoFrame, new LinearLayout.LayoutParams(NativeUi.dp(this, 74), NativeUi.dp(this, 74)));
