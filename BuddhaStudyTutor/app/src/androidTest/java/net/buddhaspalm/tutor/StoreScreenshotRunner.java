@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.View;
@@ -61,7 +62,12 @@ public class StoreScreenshotRunner extends Instrumentation {
             scroll.fullScroll(View.FOCUS_DOWN);
         });
         waitForIdleSync();
-        SystemClock.sleep(500);
+        SystemClock.sleep(1500);
+        runOnMainSync(() -> {
+            TextView home = findText(activity.getWindow().getDecorView(), "Home");
+            if (home == null || !home.getGlobalVisibleRect(new Rect()))
+                throw new AssertionError("Fixed bottom navigation is hidden after scrolling");
+        });
         Bitmap bitmap = getUiAutomation().takeScreenshot();
         if (bitmap == null) throw new AssertionError("Lower dashboard screenshot unavailable");
         File dir = new File(getTargetContext().getExternalFilesDir(null), "store-screenshots");
