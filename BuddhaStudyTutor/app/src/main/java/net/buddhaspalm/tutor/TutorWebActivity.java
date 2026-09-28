@@ -548,8 +548,7 @@ public class TutorWebActivity extends FragmentActivity {
         filter.addAction(ScreenRecordService.ACTION_RECORDING_STATE);
         filter.addAction(ScreenRecordService.ACTION_RECORDING_RESULT);
         try {
-            if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenCaptureReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            else registerReceiver(screenCaptureReceiver, filter);
+            ContextCompat.registerReceiver(this, screenCaptureReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
             screenCaptureReceiverRegistered = true;
         } catch (Exception ignored) {}
     }
