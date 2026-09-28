@@ -3,16 +3,23 @@ package net.buddhaspalm.tutor;
 import android.Manifest;
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.ContentValues;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.net.Uri;
+import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.provider.MediaStore;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.Base64;
@@ -65,6 +72,7 @@ public class TutorWebActivity extends FragmentActivity {
     private static final int REQ_NOTIFY = 6101;
     private static final int REQ_MEDIA = 6102;
     private static final int REQ_FILES = 6103;
+    private static final int REQ_SCREEN_RECORD = 6104;
 
     private static final String PREFS = "buddhastudy_native";
     private static final String BIO_KEY_ALIAS = "buddhastudy_tutor_biometric_v1";
@@ -77,11 +85,31 @@ public class TutorWebActivity extends FragmentActivity {
     private LinearLayout offlineOverlay;
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingWebPermission;
+    private MediaProjectionManager mediaProjectionManager;
+    private boolean screenCaptureReceiverRegistered = false;
+
+    private final BroadcastReceiver screenCaptureReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) return;
+            if (ScreenRecordService.ACTION_RECORDING_STATE.equals(intent.getAction())) {
+                boolean recording = intent.getBooleanExtra(ScreenRecordService.EXTRA_RECORDING, false);
+                jsNativeScreenRecordingState(recording, "");
+            } else if (ScreenRecordService.ACTION_RECORDING_RESULT.equals(intent.getAction())) {
+                boolean success = intent.getBooleanExtra(ScreenRecordService.EXTRA_SUCCESS, false);
+                String uri = intent.getStringExtra(ScreenRecordService.EXTRA_URI);
+                String name = intent.getStringExtra(ScreenRecordService.EXTRA_FILENAME);
+                String error = intent.getStringExtra(ScreenRecordService.EXTRA_ERROR);
+                jsNativeScreenRecordingResult(success, uri, name, error);
+            }
+        }
+    };
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         buildUi();
         configureWebView();
+        mediaProjectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        registerScreenCaptureReceiver();
         askNotificationPermission();
         TutorFirebaseMessagingService.ensureNotificationChannel(this);
         if (FirebaseConfigManager.initializeFromCache(this)) obtainFcmToken();
@@ -350,7 +378,7 @@ public class TutorWebActivity extends FragmentActivity {
 
     private String getAppVersion() {
         try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; }
-        catch (Exception e) { return "1.0.10"; }
+        catch (Exception e) { return "1.0.12"; }
     }
 
     private int biometricStatus() {
@@ -513,6 +541,136 @@ public class TutorWebActivity extends FragmentActivity {
         return HOME;
     }
 
+
+    private void registerScreenCaptureReceiver() {
+        if (screenCaptureReceiverRegistered) return;
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ScreenRecordService.ACTION_RECORDING_STATE);
+        filter.addAction(ScreenRecordService.ACTION_RECORDING_RESULT);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(screenCaptureReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(screenCaptureReceiver, filter);
+            screenCaptureReceiverRegistered = true;
+        } catch (Exception ignored) {}
+    }
+
+    private void jsNativeScreenshotResult(boolean success, String uri, String filename, String error) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("success", success);
+            o.put("uri", uri == null ? "" : uri);
+            o.put("filename", filename == null ? "" : filename);
+            if (!success) o.put("error", error == null ? "Screenshot failed." : error);
+            callJs("bspNativeScreenshotResult", o);
+        } catch (Exception ignored) {}
+    }
+
+    private void jsNativeScreenRecordingState(boolean recording, String error) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("recording", recording);
+            if (error != null && !error.isEmpty()) o.put("error", error);
+            callJs("bspNativeScreenRecordingState", o);
+        } catch (Exception ignored) {}
+    }
+
+    private void jsNativeScreenRecordingResult(boolean success, String uri, String filename, String error) {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("success", success);
+            o.put("uri", uri == null ? "" : uri);
+            o.put("filename", filename == null ? "" : filename);
+            if (!success) o.put("error", error == null ? "Screen recording failed." : error);
+            callJs("bspNativeScreenRecordingResult", o);
+        } catch (Exception ignored) {}
+    }
+
+    private String captureStamp() {
+        return new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(new java.util.Date());
+    }
+
+    private void captureScreenshotInternal() {
+        if (webView == null || webView.getWidth() < 2 || webView.getHeight() < 2) {
+            jsNativeScreenshotResult(false, "", "", "The learning portal is not ready to capture yet.");
+            return;
+        }
+        final Bitmap bitmap;
+        try {
+            bitmap = Bitmap.createBitmap(webView.getWidth(), webView.getHeight(), Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            webView.draw(canvas);
+        } catch (Exception e) {
+            jsNativeScreenshotResult(false, "", "", "Could not capture the learning portal.");
+            return;
+        }
+
+        final String filename = "BuddhaStudy-screenshot-" + captureStamp() + ".png";
+        new Thread(() -> {
+            Uri uri = null;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/BuddhaStudy Tutor");
+                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+                    uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri == null) throw new IllegalStateException("Could not create screenshot file.");
+                    try (java.io.OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
+                        if (out == null || !bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) throw new IllegalStateException("Could not save screenshot.");
+                    }
+                    ContentValues done = new ContentValues();
+                    done.put(MediaStore.Images.Media.IS_PENDING, 0);
+                    getContentResolver().update(uri, done, null, null);
+                } else {
+                    java.io.File root = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+                    if (root == null) throw new IllegalStateException("Pictures storage is unavailable.");
+                    java.io.File dir = new java.io.File(root, "BuddhaStudy Tutor");
+                    if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("Could not create screenshot folder.");
+                    java.io.File file = new java.io.File(dir, filename);
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                        if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) throw new IllegalStateException("Could not save screenshot.");
+                    }
+                    uri = Uri.fromFile(file);
+                }
+                final String resultUri = uri == null ? "" : uri.toString();
+                runOnUiThread(() -> jsNativeScreenshotResult(true, resultUri, filename, ""));
+            } catch (Exception e) {
+                if (uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try { getContentResolver().delete(uri, null, null); } catch (Exception ignored) {}
+                }
+                final String msg = e.getMessage() == null ? "Could not save screenshot." : e.getMessage();
+                runOnUiThread(() -> jsNativeScreenshotResult(false, "", filename, msg));
+            } finally {
+                bitmap.recycle();
+            }
+        }, "BuddhaStudyScreenshot").start();
+    }
+
+    private void startNativeScreenRecording() {
+        if (ScreenRecordService.isRecording()) {
+            jsNativeScreenRecordingState(true, "");
+            return;
+        }
+        if (mediaProjectionManager == null) {
+            jsNativeScreenRecordingState(false, "Android screen recording is unavailable on this device.");
+            return;
+        }
+        try {
+            startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), REQ_SCREEN_RECORD);
+        } catch (Exception e) {
+            jsNativeScreenRecordingState(false, "Could not open Android screen-recording permission.");
+        }
+    }
+
+    private void stopNativeScreenRecording() {
+        try {
+            startService(ScreenRecordService.stopIntent(this));
+        } catch (Exception e) {
+            jsNativeScreenRecordingState(false, "Could not stop screen recording.");
+        }
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent);
         String u = intent.getStringExtra("url");
@@ -530,6 +688,18 @@ public class TutorWebActivity extends FragmentActivity {
         if (requestCode == REQ_FILES && fileCallback != null) {
             fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
             fileCallback = null;
+            return;
+        }
+        if (requestCode == REQ_SCREEN_RECORD) {
+            if (resultCode == RESULT_OK && data != null) {
+                try {
+                    ContextCompat.startForegroundService(this, ScreenRecordService.startIntent(this, resultCode, data));
+                } catch (Exception e) {
+                    jsNativeScreenRecordingState(false, "Could not start Android screen recording.");
+                }
+            } else {
+                jsNativeScreenRecordingState(false, "Screen recording was cancelled.");
+            }
         }
     }
 
@@ -541,7 +711,21 @@ public class TutorWebActivity extends FragmentActivity {
         }
     }
 
+    @Override protected void onDestroy() {
+        if (screenCaptureReceiverRegistered) {
+            try { unregisterReceiver(screenCaptureReceiver); } catch (Exception ignored) {}
+            screenCaptureReceiverRegistered = false;
+        }
+        super.onDestroy();
+    }
+
     public class NativeBridge {
+        @JavascriptInterface public boolean supportsScreenCapture() { return true; }
+        @JavascriptInterface public boolean supportsScreenRecording() { return Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP; }
+        @JavascriptInterface public boolean isScreenRecording() { return ScreenRecordService.isRecording(); }
+        @JavascriptInterface public void captureScreenshot() { runOnUiThread(TutorWebActivity.this::captureScreenshotInternal); }
+        @JavascriptInterface public void startScreenRecording() { runOnUiThread(TutorWebActivity.this::startNativeScreenRecording); }
+        @JavascriptInterface public void stopScreenRecording() { runOnUiThread(TutorWebActivity.this::stopNativeScreenRecording); }
         @JavascriptInterface public String getFcmToken() { return prefs().getString("fcm_token", ""); }
         @JavascriptInterface public String getDeviceName() { return Build.MANUFACTURER + " " + Build.MODEL; }
         @JavascriptInterface public String getAppVersion() { return TutorWebActivity.this.getAppVersion(); }
